@@ -312,7 +312,7 @@ func _ready() -> void:
     world._apply_hero_textures()
 
     # --- HUD ---
-    var hud_gold: Label = world.get_node("HUD").get_children().filter(
+    var hud_gold: Label = world.get_node("HUD/HudBar").get_children().filter(
         func(c: Node) -> bool: return c is PanelContainer)[0].get_child(0).get_child(1).get_child(1)
     check("HUD показывает золото", hud_gold.text == "Золото: %d" % Game.gold)
     Game.add_gold(11)
@@ -344,7 +344,7 @@ func _ready() -> void:
 
     # --- шаг 11: компактная консоль и клик-удар ---
     check("консоль UI сжата до 112 px (экран ходьбы вырос)", world.UI_BAR_H == 112.0 \
-        and world._walk_holder.size == Vector2(360.0, 528.0))
+        and world._walk_holder.size == world.get_viewport_rect().size - Vector2(0, world.UI_BAR_H))
     var npc_pos: Vector2 = (world._npcs[0]["node"] as Node2D).position
     check("точка NPC интерактивна (клик по ней не бьёт)", \
         world._point_on_interactive(npc_pos + Vector2(0, -16)))

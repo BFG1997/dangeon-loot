@@ -248,6 +248,7 @@ func _ready() -> void:
     _shadow_tex = load("res://assets/sprites/props/shadow.png")
     _pointer_tex = load("res://assets/sprites/props/pointer.png")
     _bolt_tex = load("res://assets/sprites/icons/magic_bolt.png")
+    get_viewport().size_changed.connect(_resize_layout)
     _build_walk_screen()
     _build_background()
     _build_tiles()
@@ -280,9 +281,13 @@ func _ready() -> void:
     add_child(_inventory_ui)
     _trade_ui = TradeUI.new()
     add_child(_trade_ui)
+    for modal in [_dialogue, _inventory_ui, _trade_ui]:
+        modal.visibility_changed.connect(_on_modal_visibility_changed)
     Platform.gameplay_start()
 
 func _exit_tree() -> void:
+    if Controls.bindings_changed.is_connected(_refresh_controls_hint):
+        Controls.bindings_changed.disconnect(_refresh_controls_hint)
     Platform.gameplay_stop()
     _disconnect_cb(Game.gold_changed, _cb_gold)
     _disconnect_cb(Game.equipped_changed, _cb_equipped)
@@ -309,14 +314,13 @@ func _disconnect_cb(sig: Signal, cb: Callable) -> void:
 ## интерфейс физически не может перекрыть окружение. Клики по NPC и
 ## дверям работают внутри SubViewport: physics_object_picking включён,
 ## ввод в него пробрасывает SubViewportContainer (область 360xWALK_H).
-## Шаг 11: тот же контейнер отдаёт клики ЛКМ в gui_input — оттуда бьёт
-## клик-удар по пустому месту (см. _on_walk_click).
+## The container routes mapped mouse commands via gui_input; Area2D keeps LMB picking.
 func _build_walk_screen() -> void:
     var holder := SubViewportContainer.new()
     holder.name = "WalkScreen"
     holder.stretch = true
     holder.position = Vector2.ZERO
-    holder.size = Vector2(360.0, WALK_H)
+    holder.size = get_viewport_rect().size - Vector2(0, UI_BAR_H)
     holder.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     var walk_view := SubViewport.new()
     walk_view.name = "WalkViewport"
@@ -329,8 +333,7 @@ func _build_walk_screen() -> void:
     add_child(holder)
     _walk_holder = holder
     _walk_view = walk_view
-    # шаг 11: клики ЛКМ по экрану ходьбы ловим в gui_input контейнера —
-    # они и бьют (по пустому месту), и не мешают кликам по NPC/дверям
+    # Route all mapped mouse buttons, preserving object picking.
     holder.gui_input.connect(_on_walk_click)
     _world = Node2D.new()
     _world.name = "WorldContent"
@@ -665,6 +668,8 @@ func _demon_record() -> Dictionary:
     return {}
 
 func _on_npc_input(_viewport: Node, event: InputEvent, _shape_idx: int, npc_id: String) -> void:
+    if _gameplay_input_blocked():
+        return
     if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
         _click_dialog_at = Time.get_ticks_msec()   # шаг 11: этот клик — не удар
         npc_say(npc_id)
@@ -674,12 +679,23 @@ func _on_npc_input(_viewport: Node, event: InputEvent, _shape_idx: int, npc_id: 
 ## Клик ЛКМ по экрану ходьбы (ловится в gui_input контейнера SubViewport).
 ## Клик по NPC или двери не бьёт — он открывает диалог/сообщение: точка
 ## клика проверяется по тем же прямоугольникам, что и их зоны кликов.
+## The container supplies local SubViewport coordinates. Do not accept the
+## event here: Area2D picking must still receive pointer interactions.
 func _on_walk_click(event: InputEvent) -> void:
-    if event is InputEventMouseButton and event.pressed \
-            and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
-        _try_click_strike((event as InputEventMouseButton).position)
+    if not event is InputEventMouseButton or not event.pressed:
+        return
+    if _gameplay_input_blocked():
+        return
+    var position := (event as InputEventMouseButton).position
+    var world_pos := _walk_pos_to_world(position)
+    if not world_pos.is_finite():
+        return
+    # Picking may run later than gui_input. Test geometry before any command,
+    # including magic/inventory/interact, so LMB objects always have priority.
+    if event.button_index == MOUSE_BUTTON_LEFT and _point_on_interactive(world_pos):
+        return
+    _handle_gameplay_input(event, position)
 
-## Удар по клику: ЛКМ по пустому месту экрана ходьбы бьёт в сторону взгляда.
 func _try_click_strike(view_pos: Vector2) -> void:
     if _dialogue.visible or _inventory_ui.visible or _trade_ui.visible \
             or _player_dead:
@@ -854,6 +870,8 @@ func _build_doors() -> void:
 ## Клик по двери данжа.
 func _on_door_input(_viewport: Node, event: InputEvent, _shape_idx: int,
         door_id: String) -> void:
+    if _gameplay_input_blocked():
+        return
     if event is InputEventMouseButton and event.pressed \
             and event.button_index == MOUSE_BUTTON_LEFT:
         _click_dialog_at = Time.get_ticks_msec()   # шаг 11: этот клик — не удар
@@ -935,7 +953,8 @@ func _physics_process(delta: float) -> void:
     var blocked := _dialogue.visible or _inventory_ui.visible \
         or _trade_ui.visible or _player_dead
     if not blocked:
-        dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+        if _blocked_movement_inputs.is_empty():
+            dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
         var joy_vec := _joystick_output()
         if joy_vec.length() > 0.15:
             dir = (dir + joy_vec).limit_length(1.0)
@@ -1045,7 +1064,70 @@ func _update_pointers() -> void:
             and not bool(npc.get("dead", false))   # над трупом указателя нет
         pointer.visible = near
 
+# InputMap remains the movement source. Track press/release origins so input
+# held across modal visibility changes stays blocked until a fresh press.
+var _blocked_movement_inputs: Dictionary = {}
+var _held_movement_inputs: Dictionary = {}
+
+func _input(event: InputEvent) -> void:
+    var identity: String
+    if event is InputEventMouseButton:
+        identity = "mouse:%d" % event.button_index
+    elif event is InputEventKey:
+        identity = "key:%d" % (event.physical_keycode if event.physical_keycode else event.keycode)
+    else:
+        return
+    if not event.is_pressed():
+        _blocked_movement_inputs.erase(identity)
+        _held_movement_inputs.erase(identity)
+        return
+    if event.is_echo():
+        return
+    for action in ["move_left", "move_right", "move_up", "move_down"]:
+        if not event.is_action_pressed(action):
+            continue
+        _held_movement_inputs[identity] = true
+        _blocked_movement_inputs.erase(identity)
+        if _gameplay_input_blocked():
+            _blocked_movement_inputs[identity] = true
+        elif event is InputEventMouseButton:
+            var local := _walk_local_position(event.position)
+            var hovered := get_viewport().gui_get_hovered_control()
+            var over_ui := hovered != null and hovered != _walk_holder \
+                and not _walk_holder.is_ancestor_of(hovered)
+            if not local.is_finite() or over_ui:
+                _blocked_movement_inputs[identity] = true
+            elif event.button_index == MOUSE_BUTTON_LEFT \
+                    and _point_on_interactive(_walk_pos_to_world(local)):
+                _blocked_movement_inputs[identity] = true
+        return
+
+func _on_modal_visibility_changed() -> void:
+    if _gameplay_input_blocked():
+        _blocked_movement_inputs.merge(_held_movement_inputs, true)
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+        _blocked_movement_inputs.clear()
+        _held_movement_inputs.clear()
+
+func _walk_local_position(root_position: Vector2) -> Vector2:
+    if _walk_holder == null:
+        return Vector2.INF
+    var local := _walk_holder.get_global_transform_with_canvas().affine_inverse() * root_position
+    return local if Rect2(Vector2.ZERO, _walk_holder.size).has_point(local) else Vector2.INF
+
 func _unhandled_input(event: InputEvent) -> void:
+    if event is InputEventMouseButton:
+        # Mouse commands inside WalkScreen have exactly one entry: gui_input.
+        if _walk_local_position((event as InputEventMouseButton).position).is_finite():
+            return
+    _handle_gameplay_input(event)
+
+func _gameplay_input_blocked() -> bool:
+    return _player_dead or _dialogue.visible or _inventory_ui.visible or _trade_ui.visible
+
+func _handle_gameplay_input(event: InputEvent, walk_position: Vector2 = Vector2.INF) -> void:
     if _player_dead:
         return   # шаг 12: на экране смерти мир не слушает удары и диалоги
     if event.is_action_pressed("toggle_inventory"):
@@ -1058,14 +1140,10 @@ func _unhandled_input(event: InputEvent) -> void:
         return
     if event.is_action_pressed("attack") and not _dialogue.visible \
             and not _inventory_ui.visible and not _trade_ui.visible:
-        # шаг 11: ЛКМ над экраном ходьбы уже обработана в _on_walk_click
-        # (в консоли ЛКМ забирают джойстик и кнопки; сюда долетают редкие
-        # незанятые клики — бьём и по ним)
-        if event is InputEventMouseButton and _walk_holder != null \
-                and (_walk_holder.get_global_rect() as Rect2) \
-                    .has_point((event as InputEventMouseButton).position):
-            return
-        _strike()
+        if walk_position.is_finite():
+            _try_click_strike(walk_position)
+        else:
+            _strike()
         return
     if event.is_action_pressed("cast_spell") and not _dialogue.visible \
             and not _inventory_ui.visible and not _trade_ui.visible:
@@ -1546,7 +1624,7 @@ func _build_hud() -> void:
     bar_style.border_width_top = 2
     bar_bg.add_theme_stylebox_override("panel", bar_style)
     _hud_bar.add_child(bar_bg)
-    var bar_top := 640.0 - UI_BAR_H   # верхняя граница консоли на экране
+    var bar_top := 0.0   # координаты внутри нижней панели
 
     # мини-панель героя: портрет + имя + золото (в консоли, шаг 10)
     var hero_panel := PanelContainer.new()
@@ -1557,7 +1635,7 @@ func _build_hud() -> void:
     hero_style.content_margin_top = 4
     hero_style.content_margin_bottom = 4
     hero_panel.add_theme_stylebox_override("panel", hero_style)
-    layer.add_child(hero_panel)
+    _hud_bar.add_child(hero_panel)
     var hero_row := HBoxContainer.new()
     hero_row.add_theme_constant_override("separation", 7)
     hero_panel.add_child(hero_row)
@@ -1654,15 +1732,18 @@ func _build_hud() -> void:
         var spec: Dictionary = actions[i]
         var btn := Button.new()
         btn.text = String(spec["text"])
-        btn.size = BAR_BTN_SIZE
         btn.position = Vector2(BAR_BUTTONS_X, bar_top + start_y + float(i) * BAR_BTN_STEP)
         _style_small_button(btn, int(spec["font"]))
+        btn.size = BAR_BTN_SIZE
         btn.pressed.connect(spec["cb"] as Callable)
-        layer.add_child(btn)
+        btn.set_meta("action_button", true)
+        _hud_bar.add_child(btn)
         if String(spec["text"]) == "МАГИЯ":
             _spell_button = btn
         elif String(spec["text"]) == "УДАР":
             _attack_button = btn
+
+    _resize_layout.call_deferred()
 
     _hud_hint = Label.new()
     # шаг 10: подсказки — у верхнего края экрана ходьбы (временные, гаснут:
@@ -1676,12 +1757,9 @@ func _build_hud() -> void:
     _hud_hint.add_theme_color_override("font_color", Color(0.85, 0.88, 0.94))
     _hud_hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
     _hud_hint.add_theme_constant_override("shadow_offset_y", 1)
-    var controls_hint := "WASD/джойстик — идти, E — говорить, ЛКМ — удар, I — сумка"
-    if Game.is_mage():
-        controls_hint += ", Q — магия"
-    _hud_hint.text = controls_hint
     layer.add_child(_hud_hint)
-    _show_hint(_hud_hint.text, 5.0)
+    Controls.bindings_changed.connect(_refresh_controls_hint)
+    _refresh_controls_hint()
 
 ## Строка «В руках: …» в HUD — что у героя в руках и сколько урона.
 func _weapon_text() -> String:
@@ -1725,3 +1803,24 @@ func _style_small_button(btn: Button, font_size: int) -> void:
 func _on_menu_pressed() -> void:
     Platform.gameplay_stop()
     get_tree().change_scene_to_file(MAIN_SCENE)
+
+## Пересчитывается при изменении размера окна и повороте устройства.
+func _resize_layout() -> void:
+    var view_size := get_viewport_rect().size
+    if is_instance_valid(_walk_holder):
+        _walk_holder.size = Vector2(view_size.x, view_size.y - UI_BAR_H)
+    if is_instance_valid(_hud_bar):
+        for child in _hud_bar.get_children():
+            if child is Control and child.has_meta("action_button"):
+                child.size = BAR_BTN_SIZE
+                child.position.x = view_size.x - BAR_BTN_SIZE.x - 4.0
+
+
+func _refresh_controls_hint() -> void:
+    if _hud_hint == null:
+        return
+    _hud_hint.add_theme_font_size_override("font_size", 10)
+    _hud_hint.tooltip_text = ""
+    for action in Controls.get_actions():
+        _hud_hint.tooltip_text += Controls.get_action_label(action) + ": " + Controls.get_binding_text(action) + "\n"
+    _show_hint(Controls.get_hud_hint(Game.is_mage()), 5.0)

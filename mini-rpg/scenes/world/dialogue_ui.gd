@@ -75,6 +75,7 @@ func _ready() -> void:
 
     # --- портрет в золотой рамке
     var frame := PanelContainer.new()
+    frame.mouse_filter = Control.MOUSE_FILTER_PASS
     var frame_style := UiStyle.flat_style(Color(0.05, 0.05, 0.1), COLOR_GOLD)
     frame_style.set_border_width_all(3)
     frame_style.content_margin_left = 4
@@ -86,6 +87,7 @@ func _ready() -> void:
     hbox.add_child(frame)
 
     _portrait = TextureRect.new()
+    _portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
     _portrait.custom_minimum_size = Vector2(128, 128)
     _portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     _portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -139,7 +141,7 @@ func _ready() -> void:
     _trade_button.custom_minimum_size = Vector2(104, 30)
     UiStyle.style_button(_trade_button, 12)
     _trade_button.visible = false
-    _trade_button.pressed.connect(func() -> void: trade_requested.emit())
+    _trade_button.pressed.connect(_on_trade_pressed)
     bottom_row.add_child(_trade_button)
 
 ## Открыть диалог: npc = {"name", "role", "portrait", "lines", "goods"}
@@ -211,31 +213,45 @@ func _process(delta: float) -> void:
         _more_label.visible = true
         _more_label.modulate.a = 0.55 + 0.45 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)
 
-func _on_dim_input(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
-    if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+func _on_dim_input(event: InputEvent) -> void:
+    if not _active:
+        return
+    _dim.accept_event()
+    if _is_advance_click(event):
         _advance()
 
-## Клик по телу панели — тоже «дальше» (шаг 11). Кнопка ТОРГОВАТЬ сама
-## перехватывает нажатие и сюда не пропускает.
 func _on_panel_input(event: InputEvent) -> void:
-    if event is InputEventMouseButton and event.pressed \
-            and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+    if not _active:
+        return
+    _panel.accept_event()
+    if _is_advance_click(event):
+        _advance()
+
+func _is_advance_click(event: InputEvent) -> bool:
+    return event is InputEventMouseButton and event.pressed and \
+        (event.button_index == MOUSE_BUTTON_LEFT or event.is_action_pressed("interact"))
+
+func _input(event: InputEvent) -> void:
+    # Non-primary mapped buttons would otherwise be swallowed by GUI controls.
+    # LMB goes through GUI so the trade button retains priority over advancing.
+    if _active and event is InputEventMouseButton \
+            and event.button_index != MOUSE_BUTTON_LEFT and event.is_action_pressed("interact"):
+        get_viewport().set_input_as_handled()
         _advance()
 
 func _unhandled_input(event: InputEvent) -> void:
     if not _active:
         return
-    # Шаг 11: листают реплики E и F (действие "interact"), Enter/пробел и
-    # клик по затемнению (см. _on_dim_input). Удар (ЛКМ) в мире — но открытое
-    # окно приоритетнее, а ЛКМ уже ловится затемнением как «дальше».
+    # Mark handled BEFORE _advance/_close can hide the modal or emit signals.
+    get_viewport().set_input_as_handled()
     if event.is_action_pressed("interact") or event.is_action_pressed("ui_accept"):
         _advance()
-        # Шаг 6 (фикс мигания): помечаем событие обработанным, чтобы
-        # то же нажатие E не дошло до мира и не переоткрыло диалог тут же.
-        get_viewport().set_input_as_handled()
     elif event.is_action_pressed("ui_cancel"):
         _close()
-        get_viewport().set_input_as_handled()
+
+func _on_trade_pressed() -> void:
+    get_viewport().set_input_as_handled()
+    trade_requested.emit()
 
 func _advance() -> void:
     if _text_label.visible_characters < _text_label.text.length():

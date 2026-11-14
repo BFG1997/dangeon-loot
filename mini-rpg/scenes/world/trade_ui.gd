@@ -115,7 +115,7 @@ func _ready() -> void:
     close_btn.text = "ЗАКРЫТЬ"
     close_btn.custom_minimum_size = Vector2(0, 36)
     UiStyle.style_button(close_btn, 13)
-    close_btn.pressed.connect(close)
+    close_btn.pressed.connect(_on_close_pressed)
     vbox.add_child(close_btn)
 
     Game.gold_changed.connect(_on_state_changed)
@@ -320,14 +320,23 @@ func _on_state_changed(_value: int = 0) -> void:
     if visible:
         _refresh()
 
-func _on_dim_input(_viewport: Node, event: InputEvent, _idx: int) -> void:
+## gui_input supplies exactly one event; unlike Area2D.input_event.
+func _on_dim_input(event: InputEvent) -> void:
+    if not visible:
+        return
+    _dim.accept_event()
     if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
         var pos: Vector2 = (event as InputEventMouseButton).position
         if not _panel.get_global_rect().has_point(pos):
             close()
 
+func _on_close_pressed() -> void:
+    get_viewport().set_input_as_handled()
+    close()
+
 func _unhandled_input(event: InputEvent) -> void:
     if not visible:
         return
+    get_viewport().set_input_as_handled()
     if event.is_action_pressed("ui_cancel"):
         close()

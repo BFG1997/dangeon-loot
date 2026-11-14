@@ -44,8 +44,20 @@ var reset_armed := false
 @onready var music_check: CheckButton = $PanelLayer/Center/SettingsPanel/VBox/MusicCheck
 @onready var reset_button: Button = $PanelLayer/Center/SettingsPanel/VBox/ResetButton
 
+var controls_panel: PanelContainer
+
 func _ready() -> void:
     resized.connect(_resize_layout)
+
+    controls_panel = preload("res://scenes/controls/controls_editor.tscn").instantiate()
+    $PanelLayer/Center.add_child(controls_panel)
+    controls_panel.back_requested.connect(func(): _show_panel(settings_panel))
+    var controls_button := Button.new()
+    controls_button.text = "УПРАВЛЕНИЕ"
+    UiStyle.style_button(controls_button, 14)
+    settings_panel.get_node("VBox").add_child(controls_button)
+    settings_panel.get_node("VBox").move_child(controls_button, 3)
+    controls_button.pressed.connect(func(): _show_panel(controls_panel))
     chest.pivot_offset = chest.size / 2.0
     sparkles.position = chest.position + chest.size / 2.0
     Game.gold_changed.connect(_on_gold_changed)
@@ -79,6 +91,8 @@ func _exit_tree() -> void:
         Game.inventory_changed.disconnect(_refresh_stats)
 
 func _unhandled_input(event: InputEvent) -> void:
+    if controls_panel != null and controls_panel.visible:
+        return
     if panel_layer.visible and event.is_action_pressed("ui_cancel"):
         _close_panel()
 
@@ -257,7 +271,7 @@ func _on_claim_bonus_pressed() -> void:
 # --- Панели ---
 
 func _show_panel(panel: PanelContainer) -> void:
-    for other in [settings_panel, authors_panel, bonus_panel, start_panel]:
+    for other in [settings_panel, authors_panel, bonus_panel, start_panel, controls_panel]:
         other.visible = other == panel
     if panel == start_panel:
         _show_start_menu_view()
@@ -275,7 +289,7 @@ func _show_panel(panel: PanelContainer) -> void:
 
 func _close_panel() -> void:
     panel_layer.visible = false
-    for other in [settings_panel, authors_panel, bonus_panel, start_panel]:
+    for other in [settings_panel, authors_panel, bonus_panel, start_panel, controls_panel]:
         other.visible = false
 
 func _on_sound_toggled(pressed: bool) -> void:

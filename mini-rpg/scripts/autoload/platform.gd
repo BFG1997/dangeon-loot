@@ -10,6 +10,9 @@ const SLOT_TEMPLATE := "user://save_slot_%d.json"
 const META_PATH := "user://meta.json"
 const LEGACY_SAVE_PATH := "user://save.json"  # сейв из шагов 1-2
 
+## Diagnostic for the most recent global metadata read; missing file is normal.
+var meta_load_error: String = ""
+
 var provider: Provider = Provider.LOCAL
 ## Журнал вызовов для автотестов (в релизе не используется).
 var calls: Array[String] = []
@@ -70,22 +73,46 @@ func delete_slot(slot: int) -> void:
 
 ## Сохранить глобальные данные (настройки, последний слот, бонус) — meta.json.
 func save_meta(meta: Dictionary) -> int:
-    var file := FileAccess.open(META_PATH, FileAccess.WRITE)
+    # Stage in the same directory: a failed write must not truncate meta.json.
+    var temporary := META_PATH + ".tmp"
+    var file := FileAccess.open(temporary, FileAccess.WRITE)
     if file == null:
-        return FAILED
+        return FileAccess.get_open_error()
     file.store_string(JSON.stringify(meta, "\t"))
-    return OK
+    file.flush()
+    var error := file.get_error()
+    file.close()
+    if error != OK:
+        DirAccess.remove_absolute(temporary)
+        return error
+    error = DirAccess.rename_absolute(temporary, META_PATH)
+    if error != OK:
+        DirAccess.remove_absolute(temporary)
+    return error
 
-## Загрузить meta. Пустой словарь — файла нет.
 func load_meta() -> Dictionary:
+    meta_load_error = ""
     if not FileAccess.file_exists(META_PATH):
         return {}
     var file := FileAccess.open(META_PATH, FileAccess.READ)
     if file == null:
+        meta_load_error = "Cannot open meta.json (%d)" % FileAccess.get_open_error()
+        push_warning(meta_load_error)
         return {}
-    var parsed: Variant = JSON.parse_string(file.get_as_text())
-    if parsed is Dictionary:
-        return parsed
+    var source := file.get_as_text()
+    var read_error := file.get_error()
+    if read_error != OK and read_error != ERR_FILE_EOF:
+        meta_load_error = "Cannot read meta.json (%d)" % read_error
+    else:
+        var json := JSON.new()
+        var error := json.parse(source)
+        if error != OK:
+            meta_load_error = "Invalid meta.json at line %d: %s" % [json.get_error_line(), json.get_error_message()]
+        elif not json.data is Dictionary:
+            meta_load_error = "meta.json root must be an object"
+        else:
+            return json.data
+    push_warning(meta_load_error)
     return {}
 
 ## Чтение старого сейва шагов 1-2 (миграция в слоты).

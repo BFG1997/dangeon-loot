@@ -178,9 +178,13 @@ func _ready() -> void:
         1, DungeonBestiary.FLOORS)
     Game.dungeon_floor = _floor_num
     _load_floor(_floor_num)
+    for modal in [_dialogue, _inventory_ui]:
+        modal.visibility_changed.connect(_on_modal_visibility_changed)
     Platform.gameplay_start()
 
 func _exit_tree() -> void:
+    if Controls.bindings_changed.is_connected(_refresh_controls_hint):
+        Controls.bindings_changed.disconnect(_refresh_controls_hint)
     Platform.gameplay_stop()
     if Game.hp_changed.is_connected(_on_player_hp_changed):
         Game.hp_changed.disconnect(_on_player_hp_changed)
@@ -242,6 +246,8 @@ func _load_floor(floor_num: int) -> void:
 
     # фон: глухая тьма подземелья (звёзд здесь нет)
     var bg := ColorRect.new()
+    # Decorative backdrop must not consume input before Area2D picking.
+    bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
     bg.color = Color(0.015, 0.012, 0.022)
     bg.size = Vector2(DungeonBestiary.MAP_W * 16.0 + 400.0,
         DungeonBestiary.MAP_H * 16.0 + 400.0)
@@ -492,6 +498,8 @@ func _register_stairs(store: Dictionary, title: String, tile: Vector2i,
 
 func _on_stairs_input(_viewport: Node, event: InputEvent, _shape_idx: int,
         method: String) -> void:
+    if _gameplay_input_blocked():
+        return
     if event is InputEventMouseButton and event.pressed \
             and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
         _click_dialog_at = Time.get_ticks_msec()
@@ -606,6 +614,8 @@ func _spawn_chest(tile: Vector2i) -> void:
 
 func _on_chest_input(_viewport: Node, event: InputEvent, _shape_idx: int,
         chest: Dictionary) -> void:
+    if _gameplay_input_blocked():
+        return
     if event is InputEventMouseButton and event.pressed \
             and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
         _click_dialog_at = Time.get_ticks_msec()   # этот клик — не удар
@@ -674,7 +684,8 @@ func _physics_process(delta: float) -> void:
     var dir := Vector2.ZERO
     var blocked := _dialogue.visible or _inventory_ui.visible or _player_dead
     if not blocked:
-        dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+        if _blocked_movement_inputs.is_empty():
+            dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
         var joy_vec := _joystick_output()
         if joy_vec.length() > 0.15:
             dir = (dir + joy_vec).limit_length(1.0)
@@ -734,10 +745,22 @@ func _update_walk_anim(_delta: float, moving: bool, dir: Vector2 = Vector2.ZERO)
 
 var _click_dialog_at := -10000
 
+## The container supplies local SubViewport coordinates. Do not accept the
+## event here: Area2D picking must still receive pointer interactions.
 func _on_walk_click(event: InputEvent) -> void:
-    if event is InputEventMouseButton and event.pressed \
-            and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
-        _try_click_strike((event as InputEventMouseButton).position)
+    if not event is InputEventMouseButton or not event.pressed:
+        return
+    if _gameplay_input_blocked():
+        return
+    var position := (event as InputEventMouseButton).position
+    var world_pos := _walk_pos_to_world(position)
+    if not world_pos.is_finite():
+        return
+    # Picking may run later than gui_input. Test geometry before any command,
+    # including magic/inventory/interact, so LMB objects always have priority.
+    if event.button_index == MOUSE_BUTTON_LEFT and _point_on_interactive(world_pos):
+        return
+    _handle_gameplay_input(event, position)
 
 func _try_click_strike(view_pos: Vector2) -> void:
     if _dialogue.visible or _inventory_ui.visible or _player_dead:
@@ -770,7 +793,70 @@ func _point_on_interactive(pos: Vector2) -> bool:
             return true
     return false
 
+# InputMap remains the movement source. Track press/release origins so input
+# held across modal visibility changes stays blocked until a fresh press.
+var _blocked_movement_inputs: Dictionary = {}
+var _held_movement_inputs: Dictionary = {}
+
+func _input(event: InputEvent) -> void:
+    var identity: String
+    if event is InputEventMouseButton:
+        identity = "mouse:%d" % event.button_index
+    elif event is InputEventKey:
+        identity = "key:%d" % (event.physical_keycode if event.physical_keycode else event.keycode)
+    else:
+        return
+    if not event.is_pressed():
+        _blocked_movement_inputs.erase(identity)
+        _held_movement_inputs.erase(identity)
+        return
+    if event.is_echo():
+        return
+    for action in ["move_left", "move_right", "move_up", "move_down"]:
+        if not event.is_action_pressed(action):
+            continue
+        _held_movement_inputs[identity] = true
+        _blocked_movement_inputs.erase(identity)
+        if _gameplay_input_blocked():
+            _blocked_movement_inputs[identity] = true
+        elif event is InputEventMouseButton:
+            var local := _walk_local_position(event.position)
+            var hovered := get_viewport().gui_get_hovered_control()
+            var over_ui := hovered != null and hovered != _walk_holder \
+                and not _walk_holder.is_ancestor_of(hovered)
+            if not local.is_finite() or over_ui:
+                _blocked_movement_inputs[identity] = true
+            elif event.button_index == MOUSE_BUTTON_LEFT \
+                    and _point_on_interactive(_walk_pos_to_world(local)):
+                _blocked_movement_inputs[identity] = true
+        return
+
+func _on_modal_visibility_changed() -> void:
+    if _gameplay_input_blocked():
+        _blocked_movement_inputs.merge(_held_movement_inputs, true)
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+        _blocked_movement_inputs.clear()
+        _held_movement_inputs.clear()
+
+func _walk_local_position(root_position: Vector2) -> Vector2:
+    if _walk_holder == null:
+        return Vector2.INF
+    var local := _walk_holder.get_global_transform_with_canvas().affine_inverse() * root_position
+    return local if Rect2(Vector2.ZERO, _walk_holder.size).has_point(local) else Vector2.INF
+
 func _unhandled_input(event: InputEvent) -> void:
+    if event is InputEventMouseButton:
+        # Mouse commands inside WalkScreen have exactly one entry: gui_input.
+        if _walk_local_position((event as InputEventMouseButton).position).is_finite():
+            return
+    _handle_gameplay_input(event)
+
+func _gameplay_input_blocked() -> bool:
+    return _player_dead or _dialogue.visible or _inventory_ui.visible
+
+func _handle_gameplay_input(event: InputEvent, walk_position: Vector2 = Vector2.INF) -> void:
     if _player_dead:
         return
     if event.is_action_pressed("toggle_inventory"):
@@ -781,11 +867,10 @@ func _unhandled_input(event: InputEvent) -> void:
         return
     if event.is_action_pressed("attack") and not _dialogue.visible \
             and not _inventory_ui.visible:
-        if event is InputEventMouseButton and _walk_holder != null \
-                and (_walk_holder.get_global_rect() as Rect2) \
-                    .has_point((event as InputEventMouseButton).position):
-            return
-        _strike()
+        if walk_position.is_finite():
+            _try_click_strike(walk_position)
+        else:
+            _strike()
         return
     if event.is_action_pressed("cast_spell") and not _dialogue.visible \
             and not _inventory_ui.visible:
@@ -1532,8 +1617,8 @@ func _build_hud() -> void:
     _hud_hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
     _hud_hint.add_theme_constant_override("shadow_offset_y", 1)
     layer.add_child(_hud_hint)
-    _show_hint("WASD/джойстик — идти, ЛКМ — удар, I — сумка"
-        + (", Q — магия" if Game.is_mage() else ""), 5.0)
+    Controls.bindings_changed.connect(_refresh_controls_hint)
+    _refresh_controls_hint()
 
 ## «Подземелье · ур. N/10 · врагов: K» — обновляется на спавне и после убийств.
 func _update_progress_label() -> void:
@@ -1600,3 +1685,13 @@ func _resize_layout() -> void:
             if child is Control and child.has_meta("action_button"):
                 child.size = BAR_BTN_SIZE
                 child.position.x = view_size.x - BAR_BTN_SIZE.x - 4.0
+
+
+func _refresh_controls_hint() -> void:
+    if _hud_hint == null:
+        return
+    _hud_hint.add_theme_font_size_override("font_size", 10)
+    _hud_hint.tooltip_text = ""
+    for action in Controls.get_actions():
+        _hud_hint.tooltip_text += Controls.get_action_label(action) + ": " + Controls.get_binding_text(action) + "\n"
+    _show_hint(Controls.get_hud_hint(Game.is_mage()), 5.0)

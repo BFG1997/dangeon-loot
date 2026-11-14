@@ -162,7 +162,7 @@ func _ready() -> void:
     close_btn.text = "ЗАКРЫТЬ (I)"
     close_btn.custom_minimum_size = Vector2(0, 38)
     UiStyle.style_button(close_btn, 13)
-    close_btn.pressed.connect(close)
+    close_btn.pressed.connect(_on_close_pressed)
     vbox.add_child(close_btn)
 
 func open() -> void:
@@ -223,6 +223,7 @@ func _make_equip_cell(is_weapon: bool) -> PanelContainer:
     var icon_holder := CenterContainer.new()
     box.add_child(icon_holder)
     var icon := TextureRect.new()
+    icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
     icon.custom_minimum_size = Vector2(28, 28)
     icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -315,6 +316,7 @@ func _make_slot(index: int) -> Control:
     var icon_box := CenterContainer.new()
     slot.add_child(icon_box)
     var icon := TextureRect.new()
+    icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
     icon.custom_minimum_size = Vector2(40, 40)
     icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -467,14 +469,41 @@ func _on_use_pressed() -> void:
     elif bool(result.get("full", false)):
         _desc_label.text = "[color=#9aa0a6]ХП и мана уже полные — %s не нужен.[/color]" % title
 
-func _on_dim_input(_viewport: Node, event: InputEvent, _idx: int) -> void:
+## gui_input supplies exactly one event; unlike Area2D.input_event.
+func _on_dim_input(event: InputEvent) -> void:
+    if not visible:
+        return
+    _dim.accept_event()
     if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
         var pos: Vector2 = (event as InputEventMouseButton).position
         if not _panel.get_global_rect().has_point(pos):
             close()
 
+func _on_close_pressed() -> void:
+    get_viewport().set_input_as_handled()
+    close()
+
+# Capture the modal shortcut before a focused Button can consume Enter/Space,
+# and before STOP controls swallow non-primary mouse buttons. Primary LMB
+# keeps its normal selection/button behavior within the inventory.
+func _input(event: InputEvent) -> void:
+    if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+        return
+    _handle_close_input(event)
+
+func _handle_close_input(event: InputEvent) -> bool:
+    if not visible:
+        return false
+    if not event.is_action("toggle_inventory") and not event.is_action("ui_cancel"):
+        return false
+    get_viewport().set_input_as_handled()
+    if event.is_action_pressed("toggle_inventory") or event.is_action_pressed("ui_cancel"):
+        close()
+    return true
+
 func _unhandled_input(event: InputEvent) -> void:
     if not visible:
         return
-    if event.is_action_pressed("toggle_inventory") or event.is_action_pressed("ui_cancel"):
-        close()
+    if not _handle_close_input(event):
+        # Consume other unhandled input while modal, including key echoes.
+        get_viewport().set_input_as_handled()

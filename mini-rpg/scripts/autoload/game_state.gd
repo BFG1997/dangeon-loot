@@ -34,6 +34,8 @@
 ## - dungeon_floor — текущий этаж данжа (0 = не в данже, только сессия).
 extends Node
 
+signal meta_saved(error: int)
+
 signal gold_changed(new_gold: int)
 signal inventory_changed()
 signal hp_changed(hp: int, max_hp: int)
@@ -150,6 +152,7 @@ var dungeon_floor: int = 0
 ## Текущий слот сейва: 0 — игра не идёт (просто смотрим меню).
 var current_slot: int = 0
 ## Глобальные настройки игрока (хранятся в meta.json).
+var last_meta_save_error: int = OK
 var settings := {"sound": true, "music": true}
 ## Глобальная meta: последний слот, дата бонуса, отложенные награды бонуса.
 var meta := {"last_slot": 0, "last_bonus_date": "", "pending_gold": 0, "pending_items": []}
@@ -157,14 +160,23 @@ var meta := {"last_slot": 0, "last_bonus_date": "", "pending_gold": 0, "pending_
 func _ready() -> void:
     randomize()
     meta = Platform.load_meta()
-    var saved_settings: Dictionary = meta.get("settings", {})
-    settings["sound"] = bool(saved_settings.get("sound", true))
-    settings["music"] = bool(saved_settings.get("music", true))
+    _load_settings(meta.get("settings", {}))
 
 ## Записать глобальную meta на диск.
-func save_meta() -> void:
-    meta["settings"] = settings.duplicate()
-    Platform.save_meta(meta)
+func save_meta() -> int:
+    meta["settings"] = settings.duplicate(true)
+    last_meta_save_error = Platform.save_meta(meta)
+    if last_meta_save_error != OK:
+        push_warning("Game: meta save failed (%d)" % last_meta_save_error)
+    meta_saved.emit(last_meta_save_error)
+    return last_meta_save_error
+
+func _load_settings(value: Variant) -> void:
+    # Preserve additional settings while validating known boolean fields.
+    settings = value.duplicate(true) if value is Dictionary else {}
+    for key in ["sound", "music"]:
+        if not settings.get(key) is bool:
+            settings[key] = true
 
 func hero_title() -> String:
     return String(HEROES.get(hero_id, {}).get("title", hero_id))
@@ -835,9 +847,7 @@ func load_save_data(data: Dictionary) -> void:
     # Мёртвые NPC в сейв не пишутся: список живёт только в сессии.
     # Совместимость с сейвами шагов 1-2: настройки жили в сейве.
     if data.has("settings"):
-        var saved_settings: Dictionary = data.get("settings", {})
-        settings["sound"] = bool(saved_settings.get("sound", true))
-        settings["music"] = bool(saved_settings.get("music", true))
+        _load_settings(data.get("settings", {}))
         save_meta()
     gold_changed.emit(gold)
     inventory_changed.emit()

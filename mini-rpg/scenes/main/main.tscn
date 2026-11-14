@@ -1,0 +1,377 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scenes/main/main.gd" id="1_main"]
+[ext_resource type="Texture2D" path="res://assets/sprites/chest_closed.png" id="2_chest"]
+[ext_resource type="Texture2D" path="res://assets/sprites/gift.png" id="3_gift"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.086, 0.094, 0.149, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.65, 0.13, 1)
+content_margin_left = 18.0
+content_margin_top = 16.0
+content_margin_right = 18.0
+content_margin_bottom = 16.0
+
+[sub_resource type="Gradient" id="Gradient_spark"]
+offsets = PackedFloat32Array(0, 0.7)
+colors = PackedColorArray(1, 0.84, 0, 1, 1, 0.84, 0, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_spark"]
+gradient = SubResource("Gradient_spark")
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.08, 1)
+
+[node name="TitleLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -160.0
+offset_right = 160.0
+offset_top = 130.0
+offset_bottom = 166.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+theme_override_font_sizes/font_size = 24
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "DUNGEON LOOT"
+
+[node name="SubtitleLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -160.0
+offset_right = 160.0
+offset_top = 172.0
+offset_bottom = 190.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.67, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+text = "рабочее название · главное меню"
+
+[node name="Chest" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -32.0
+offset_top = -124.0
+offset_right = 32.0
+offset_bottom = -60.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+texture = ExtResource("2_chest")
+stretch_mode = 0
+
+[node name="Sparkles" type="CPUParticles2D" parent="."]
+position = Vector2(180, 228)
+emitting = false
+amount = 14
+lifetime = 0.55
+one_shot = true
+explosiveness = 1.0
+direction = Vector2(0, -1)
+spread = 180.0
+gravity = Vector2(0, 340)
+initial_velocity_min = 70.0
+initial_velocity_max = 140.0
+scale_amount_min = 2.0
+scale_amount_max = 3.5
+color_ramp = SubResource("GradientTexture1D_spark")
+
+[node name="HintLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -48.0
+offset_right = 160.0
+offset_bottom = -20.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.81, 0.85, 0.89, 1)
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+text = "Тапни по сундуку!"
+
+[node name="StatsLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -160.0
+offset_top = -90.0
+offset_right = 160.0
+offset_bottom = -50.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.91, 0.91, 0.94, 1)
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+text = "Золото: 0 · Добыча: 0"
+
+[node name="MenuButtons" type="Control" parent="."]
+layout_mode = 1
+mouse_filter = 2
+
+[node name="PanelLayer" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Dim" type="ColorRect" parent="PanelLayer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0, 0, 0, 0.55)
+
+[node name="Center" type="CenterContainer" parent="PanelLayer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="SettingsPanel" type="PanelContainer" parent="PanelLayer/Center"]
+custom_minimum_size = Vector2(280, 0)
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBox" type="VBoxContainer" parent="PanelLayer/Center/SettingsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="TitleLabel" type="Label" parent="PanelLayer/Center/SettingsPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+text = "НАСТРОЙКИ"
+
+[node name="SoundCheck" type="CheckButton" parent="PanelLayer/Center/SettingsPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Звук"
+
+[node name="MusicCheck" type="CheckButton" parent="PanelLayer/Center/SettingsPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Музыка"
+
+[node name="ResetButton" type="Button" parent="PanelLayer/Center/SettingsPanel/VBox"]
+layout_mode = 2
+text = "СБРОСИТЬ ПРОГРЕСС"
+
+[node name="CloseButton" type="Button" parent="PanelLayer/Center/SettingsPanel/VBox"]
+layout_mode = 2
+text = "ЗАКРЫТЬ"
+
+[node name="AuthorsPanel" type="PanelContainer" parent="PanelLayer/Center"]
+visible = false
+custom_minimum_size = Vector2(280, 0)
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBox" type="VBoxContainer" parent="PanelLayer/Center/AuthorsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="PanelLayer/Center/AuthorsPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+text = "АВТОРЫ"
+
+[node name="IdeaLabel" type="Label" parent="PanelLayer/Center/AuthorsPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.85, 0.87, 0.9, 1)
+autowrap_mode = 3
+horizontal_alignment = 1
+text = "Идея и гейм-дизайн: <впиши себя>"
+
+[node name="CodeLabel" type="Label" parent="PanelLayer/Center/AuthorsPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.85, 0.87, 0.9, 1)
+autowrap_mode = 3
+horizontal_alignment = 1
+text = "Код и пиксель-арты: Z.ai (GLM)"
+
+[node name="EngineLabel" type="Label" parent="PanelLayer/Center/AuthorsPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.85, 0.87, 0.9, 1)
+autowrap_mode = 3
+horizontal_alignment = 1
+text = "Движок: Godot 4.7"
+
+[node name="ThanksLabel" type="Label" parent="PanelLayer/Center/AuthorsPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+autowrap_mode = 3
+horizontal_alignment = 1
+text = "Спасибо, что тапаете по сундукам!"
+
+[node name="CloseButton" type="Button" parent="PanelLayer/Center/AuthorsPanel/VBox"]
+layout_mode = 2
+text = "ЗАКРЫТЬ"
+
+[node name="StartPanel" type="PanelContainer" parent="PanelLayer/Center"]
+visible = false
+custom_minimum_size = Vector2(280, 0)
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBox" type="VBoxContainer" parent="PanelLayer/Center/StartPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="PanelLayer/Center/StartPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+text = "ИГРА"
+
+[node name="NewGameButton" type="Button" parent="PanelLayer/Center/StartPanel/VBox"]
+layout_mode = 2
+text = "НОВАЯ ИГРА"
+
+[node name="ContinueButton" type="Button" parent="PanelLayer/Center/StartPanel/VBox"]
+layout_mode = 2
+text = "ПРОДОЛЖИТЬ"
+
+[node name="LoadButton" type="Button" parent="PanelLayer/Center/StartPanel/VBox"]
+layout_mode = 2
+text = "ЗАГРУЗИТЬ ИГРУ"
+
+[node name="StartHint" type="Label" parent="PanelLayer/Center/StartPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.67, 1)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+text = ""
+
+[node name="StartCloseButton" type="Button" parent="PanelLayer/Center/StartPanel/VBox"]
+layout_mode = 2
+text = "ЗАКРЫТЬ"
+
+[node name="SlotsBox" type="VBoxContainer" parent="PanelLayer/Center/StartPanel"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SlotsTitle" type="Label" parent="PanelLayer/Center/StartPanel/SlotsBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+text = "ЗАГРУЗИТЬ ИГРУ"
+
+[node name="SlotsList" type="VBoxContainer" parent="PanelLayer/Center/StartPanel/SlotsBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SlotsBackButton" type="Button" parent="PanelLayer/Center/StartPanel/SlotsBox"]
+layout_mode = 2
+text = "НАЗАД"
+
+[node name="BonusPanel" type="PanelContainer" parent="PanelLayer/Center"]
+visible = false
+custom_minimum_size = Vector2(280, 0)
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBox" type="VBoxContainer" parent="PanelLayer/Center/BonusPanel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="TitleLabel" type="Label" parent="PanelLayer/Center/BonusPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+text = "БОНУС"
+
+[node name="Gift" type="TextureRect" parent="PanelLayer/Center/BonusPanel/VBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+custom_minimum_size = Vector2(64, 64)
+stretch_mode = 0
+texture = ExtResource("3_gift")
+
+[node name="BonusLabel" type="Label" parent="PanelLayer/Center/BonusPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.85, 0.87, 0.9, 1)
+autowrap_mode = 3
+horizontal_alignment = 1
+text = "Раз в день: 50-200 золота\nи фиолетовая добыча!"
+
+[node name="ClaimButton" type="Button" parent="PanelLayer/Center/BonusPanel/VBox"]
+layout_mode = 2
+text = "ЗАБРАТЬ ПОДАРОК"
+
+[node name="ResultLabel" type="Label" parent="PanelLayer/Center/BonusPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.85, 0.87, 0.9, 1)
+autowrap_mode = 3
+horizontal_alignment = 1
+text = ""
+
+[node name="CloseButton" type="Button" parent="PanelLayer/Center/BonusPanel/VBox"]
+layout_mode = 2
+text = "ЗАКРЫТЬ"
+
+[connection signal="gui_input" from="Chest" to="." method="_on_chest_gui_input"]
+[connection signal="toggled" from="PanelLayer/Center/SettingsPanel/VBox/SoundCheck" to="." method="_on_sound_toggled"]
+[connection signal="toggled" from="PanelLayer/Center/SettingsPanel/VBox/MusicCheck" to="." method="_on_music_toggled"]
+[connection signal="pressed" from="PanelLayer/Center/SettingsPanel/VBox/ResetButton" to="." method="_on_reset_pressed"]
+[connection signal="pressed" from="PanelLayer/Center/SettingsPanel/VBox/CloseButton" to="." method="_close_panel"]
+[connection signal="pressed" from="PanelLayer/Center/AuthorsPanel/VBox/CloseButton" to="." method="_close_panel"]
+[connection signal="pressed" from="PanelLayer/Center/StartPanel/VBox/NewGameButton" to="." method="_on_new_game_pressed"]
+[connection signal="pressed" from="PanelLayer/Center/StartPanel/VBox/ContinueButton" to="." method="_on_continue_pressed"]
+[connection signal="pressed" from="PanelLayer/Center/StartPanel/VBox/LoadButton" to="." method="_on_load_pressed"]
+[connection signal="pressed" from="PanelLayer/Center/StartPanel/VBox/StartCloseButton" to="." method="_close_panel"]
+[connection signal="pressed" from="PanelLayer/Center/StartPanel/SlotsBox/SlotsBackButton" to="." method="_on_slots_back_pressed"]
+[connection signal="pressed" from="PanelLayer/Center/BonusPanel/VBox/ClaimButton" to="." method="_on_claim_bonus_pressed"]
+[connection signal="pressed" from="PanelLayer/Center/BonusPanel/VBox/CloseButton" to="." method="_close_panel"]

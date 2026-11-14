@@ -30,7 +30,6 @@ window/size/window_width_override=720
 window/size/window_height_override=1280
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-; Keep the existing UI size in logical coordinates at the higher base resolution.
 window/stretch/scale=2.0
 window/handheld/orientation=6
 

@@ -23,12 +23,15 @@ Saves="*res://scripts/autoload/save_manager.gd"
 
 [display]
 
-window/size/viewport_width=360
-window/size/viewport_height=640
+window/size/viewport_width=720
+window/size/viewport_height=1280
 window/size/window_width_override=720
 window/size/window_height_override=1280
 window/stretch/mode="canvas_items"
-window/handheld/orientation=1
+window/stretch/aspect="expand"
+; Keep the existing UI size in logical coordinates at the higher base resolution.
+window/stretch/scale=2.0
+window/handheld/orientation=6
 
 [input]
 

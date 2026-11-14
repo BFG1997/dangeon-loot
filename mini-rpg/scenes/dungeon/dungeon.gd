@@ -162,6 +162,7 @@ func _ready() -> void:
     _bolt_tex = load("res://assets/sprites/icons/magic_bolt.png")
     _hero_sheet_tex = load(String(Game.HEROES.get(Game.hero_id,
         Game.HEROES[Game.DEFAULT_HERO])["sheet"]))
+    get_viewport().size_changed.connect(_resize_layout)
     _build_walk_screen()
     _build_hud()
     _build_joystick()
@@ -200,7 +201,7 @@ func _build_walk_screen() -> void:
     holder.name = "WalkScreen"
     holder.stretch = true
     holder.position = Vector2.ZERO
-    holder.size = Vector2(360.0, WALK_H)
+    holder.size = get_viewport_rect().size - Vector2(0, UI_BAR_H)
     holder.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     var walk_view := SubViewport.new()
     walk_view.name = "WalkViewport"
@@ -1402,7 +1403,7 @@ func _build_hud() -> void:
     bar_style.border_width_top = 2
     bar_bg.add_theme_stylebox_override("panel", bar_style)
     _hud_bar.add_child(bar_bg)
-    var bar_top := 640.0 - UI_BAR_H
+    var bar_top := 0.0
     var hero_panel := PanelContainer.new()
     hero_panel.position = Vector2(BAR_HERO_POS.x, bar_top + BAR_HERO_POS.y)
     var hero_style := UiStyle.flat_style(Color(0.11, 0.12, 0.19), Color(0.5, 0.42, 0.16))
@@ -1411,7 +1412,7 @@ func _build_hud() -> void:
     hero_style.content_margin_top = 4
     hero_style.content_margin_bottom = 4
     hero_panel.add_theme_stylebox_override("panel", hero_style)
-    layer.add_child(hero_panel)
+    _hud_bar.add_child(hero_panel)
     var hero_row := HBoxContainer.new()
     hero_row.add_theme_constant_override("separation", 7)
     hero_panel.add_child(hero_row)
@@ -1501,11 +1502,14 @@ func _build_hud() -> void:
         var spec: Dictionary = actions[i]
         var btn := Button.new()
         btn.text = String(spec["text"])
-        btn.size = BAR_BTN_SIZE
         btn.position = Vector2(BAR_BUTTONS_X, bar_top + start_y + float(i) * BAR_BTN_STEP)
         _style_small_button(btn, int(spec["font"]))
+        btn.size = BAR_BTN_SIZE
         btn.pressed.connect(spec["cb"] as Callable)
-        layer.add_child(btn)
+        btn.set_meta("action_button", true)
+        _hud_bar.add_child(btn)
+    _resize_layout.call_deferred()
+
     # строка прогресса данжа — у верхнего края экрана ходьбы
     _hud_floor = Label.new()
     _hud_floor.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -1585,3 +1589,14 @@ func _on_menu_pressed() -> void:
     Game.dungeon_floor = 0
     Platform.gameplay_stop()
     get_tree().change_scene_to_file(MAIN_SCENE)
+
+## Пересчитывается при изменении размера окна и повороте устройства.
+func _resize_layout() -> void:
+    var view_size := get_viewport_rect().size
+    if is_instance_valid(_walk_holder):
+        _walk_holder.size = Vector2(view_size.x, view_size.y - UI_BAR_H)
+    if is_instance_valid(_hud_bar):
+        for child in _hud_bar.get_children():
+            if child is Control and child.has_meta("action_button"):
+                child.size = BAR_BTN_SIZE
+                child.position.x = view_size.x - BAR_BTN_SIZE.x - 4.0

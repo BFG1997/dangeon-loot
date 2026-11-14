@@ -45,6 +45,7 @@ var reset_armed := false
 @onready var reset_button: Button = $PanelLayer/Center/SettingsPanel/VBox/ResetButton
 
 func _ready() -> void:
+    resized.connect(_resize_layout)
     chest.pivot_offset = chest.size / 2.0
     sparkles.position = chest.position + chest.size / 2.0
     Game.gold_changed.connect(_on_gold_changed)
@@ -144,7 +145,7 @@ func _reveal_next_item() -> void:
 func _slot_position(index: int) -> Vector2:
     var viewport_size := get_viewport_rect().size
     var x := (viewport_size.x - BUTTON_SIZE.x) / 2.0
-    var y := FIRST_SLOT_Y + index * (BUTTON_SIZE.y + BUTTON_GAP)
+    var y := FIRST_SLOT_Y + (size.y - 640.0) / 2.0 + index * (BUTTON_SIZE.y + BUTTON_GAP)
     return Vector2(x, y)
 
 func _make_menu_button(item: Dictionary) -> Button:
@@ -306,3 +307,9 @@ func _on_gold_changed(_new_gold: int) -> void:
 
 func _refresh_stats() -> void:
     stats_label.text = "Золото: %d · Добыча: %d" % [Game.gold, Game.inventory.size()]
+
+func _resize_layout() -> void:
+    sparkles.position = chest.position + chest.size / 2.0
+    for i in buttons_layer.get_child_count():
+        var button := buttons_layer.get_child(i) as Control
+        button.position = _slot_position(i)

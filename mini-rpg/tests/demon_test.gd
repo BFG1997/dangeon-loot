@@ -4,7 +4,7 @@
 ## у живых NPC, лавка демона через UI (покупка со скидкой), ярость после
 ## трёх ударов (преследование, удары по герою, лавка закрыта), СБРОС ЯРОСТИ
 ## при возрождении героя (шаг 13), вечная смерть демона: жертвы оживают
-## и забывают, демон больше не возвращается (сейв v6).
+## и забывают, демон больше не возвращается (сейв v7).
 ## Запуск: godot --headless --path . res://tests/demon_test.tscn
 extends Node
 
@@ -111,6 +111,29 @@ func _ready() -> void:
     world._trade_ui.close()
     await get_tree().process_frame
 
+    # --- шаг 23: продали демону магическое оружие — оно в ЕГО лавке ---
+    Game.add_item({"item_id": "blade_frost", "title": "Морозный клинок",
+        "quality": "blue"})
+    var frost_idx := -1
+    for i in range(Game.inventory.size()):
+        if String((Game.inventory[i] as Dictionary).get("item_id", "")) \
+                == "blade_frost":
+            frost_idx = i
+    check("морозный клинок в сумке для продажи", frost_idx >= 0)
+    var stock_before: Dictionary = Game.merchant_stock.duplicate()
+    check("продажа демону принята", frost_idx >= 0 \
+        and Game.sell_item(frost_idx, true))
+    check("клинок исчез из сумки", not Game._has_item("blade_frost"))
+    check("демон выставил клинок на свой прилавок",
+        Game.demon_goods().has("blade_frost"))
+    check("прилавок живого Зорана не тронут",
+        Game.merchant_stock == stock_before)
+    check("клинок у демона по скидочной цене", Game.demon_price("blade_frost") \
+        == int(round(float(ItemDB.price("blade_frost")) * 0.9)))
+    check("demon_stock уехал в сейв v7", "blade_frost" \
+        in (Game.to_save_data().get("demon_stock", []) as Array))
+    await get_tree().process_frame
+
     # --- убиваем не-торговца Лиру: скидка растёт, товары не растут ---
     var lira := find_npc(world, "lira")
     world.player.position = (lira["node"] as Node2D).position + Vector2(-18, 0)
@@ -122,7 +145,8 @@ func _ready() -> void:
     await get_tree().process_frame
     check("скидка 20% за двух убитых", Game.demon_discount_pct() == 20)
     check("цена морса упала до 8 з.", Game.demon_price("mors") == 8)
-    check("товаров у демона всё ещё 4 (Лира не торговала)", Game.demon_goods().size() == 4)
+    check("товаров у демона: 4 базовых + проданный клинок (Лира не торговала)",
+        Game.demon_goods().size() == 5)
     check("демон не появился второй раз", world._npcs.size() == 7)   # 6 жителей + демон
 
     # --- старые диалоги пропали: у живых NPC только реплика про убийство ---
@@ -220,7 +244,7 @@ func _ready() -> void:
     check("жертвы забыты: список убитых пуст", Game.dead_npcs.is_empty())
     check("скидка сброшена (жертв больше нет)", Game.demon_discount_pct() == 0)
     check("товаров у демона больше нет", Game.demon_goods().is_empty())
-    check("сейв v6 хранит demon_defeated", int(Game.to_save_data().get("v", 0)) == 6 \
+    check("сейв v7 хранит demon_defeated", int(Game.to_save_data().get("v", 0)) == 7 \
         and bool(Game.to_save_data().get("demon_defeated", false)))
     glot = find_npc(world, "glot")
     check("Глот ожил", not bool(glot["dead"]) and int(glot["hp"]) == 50)

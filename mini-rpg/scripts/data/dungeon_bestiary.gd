@@ -1,10 +1,35 @@
-## Бестиарий и генератор 1-го подземелья «Dungeon Loot» (шаги 13–14).
-## Данж 1 — «Подземелье замка»: 10 этажей, на каждом от 1 до 5 противников
-## (этажи генерируются заново при каждом входе — рогалик) и 1–2 сундука
-## с добычей (шаг 14). Виды противников по возрастанию сложности: паук,
-## змея, космический паук, мертвец бомж, мертвец рыцарь, мертвец колдун,
-## демон мечник, демон колдун. На 10-м этаже — обязательный босс:
-## Таинственный демон с юга карты.
+## Бестиарий и генератор подземелий «Dungeon Loot» (шаги 13–16).
+## Данж 1 — «Подземелье замка» (шаг 15): 4 БОЛЬШИХ тематических этажа.
+## Шаг 17: коридоры шириной 3 в обеих осях и проход в зал босса шириной 3 —
+## в них можно обойти встречного врага и кайтить (герой 95, все враги ниже).
+## Карта 64x48, комнат 10–13, врагов на этаж 7–13 (плюс элитные «чемпионы»
+## и хранитель сокровищницы).
+## Данж 2 — «Скит Пустоты» (шаг 16): открывается после победы над демоном
+## в данже 1 (дверь 2 замка). 4 этажа, население — КУЛЬТИСТЫ (5 видов):
+## послушник, фанатик, тяжеловес, чтец (колдун), старейшина (колдун).
+## Босс 4-го этажа — Великий культист со щупальцами (лист 72x96, как у
+## демона данжа 1). Его победа НЕ воскрешает жителей — это умеет только
+## демон: он же вершил убийства. Убитый босс данжа 2 мёртв навсегда
+## (dungeons_cleared сохраняется в сейве).
+## Каждый этаж — своя тема (тайлы стен/полов, декор, акценты, свет):
+##   1 «Смрадные катакомбы» — пауки и змеи, паутина, мшистый камень;
+##   2 «Пустотные чертоги» — космические пауки и мертвецы, звёздный камень,
+##     фиолетовые трещины и кристаллы;
+##   3 «Костяная обитель» — мертвецы всех видов, пол в костях, смерть-свечение;
+##   4 «Багровое логово» — высшие демоны, угли, ковровая дорожка к трону
+##     и обязательный босс: Таинственный демон с юга карты (в диалоге он
+##     узнаёт героя, если тот видел его у края мира).
+## На этажах 1–3 есть СОКРОВИЩНИЦА: зал из золотой мозаики с парой сундуков,
+## кристаллами и элитным хранителем. На 4-м — большой зал босса с колоннами,
+## жаровнями и ковровой дорожкой. Сундуков на этаже 5–7 (шаг 19 — больше).
+## Шаг 19: лестница вниз открыта сразу — убивать всех не обязательно;
+## за врагов дают опыт ("xp"), у героя — уровни (урон и ХП растут вдвое).
+## Данж 3 — «Глубины Р'льеха» (шаг 20): открывается после победы над
+## Великим культистом (дверь 3 замка). 4 этажа, население — ЛАВКРАФТИАНСКИЕ
+## ЧУДОВИЩА (5 видов): Глубинный, Ползун щупалец, Пожиратель снов
+## (колдун), Отродье звёзд и Шоггот. Босс 4-го этажа — Большой Ктулху
+## (лист 72x96, как у прочих боссов). Арт — tools/gen_dungeon3.py,
+## тайлы в свободных клетках атласа (ряды 6–7 и хвост ряда 5).
 ## Все числа хп/урона/скоростей и награды — ЗАГЛУШКИ (утверждает автор).
 class_name DungeonBestiary
 extends RefCounted
@@ -15,45 +40,45 @@ const SHEET_DIR := "res://assets/sprites/dungeon/"
 ## от него зависит, каких врагов какой этаж может заспавнить).
 ## ranged: true — колдун: держит дистанцию и швыряет болт (болт летит
 ## со скоростью bolt_speed на дистанцию bolt_range, перезарядка bolt_cd).
-## gold — награда за убийство (ЗАГЛУШКА), plus — шанс зелья, %.
+## gold — награда за убийство (ЗАГЛУШКА); xp — опыт за победу (шаг 19).
 const FOES: Array[Dictionary] = [
     {"id": "spider", "name": "Паук", "hp": 12, "damage": 4, "speed": 70.0,
         "sheet": SHEET_DIR + "spider.png", "ranged": false,
         "aggro": 110.0, "attack_range": 22.0, "attack_cd": 1.1,
-        "gold": 3, "bolt_color": [0.55, 0.85, 0.95]},
+        "gold": 3, "xp": 4, "bolt_color": [0.55, 0.85, 0.95]},
     {"id": "snake", "name": "Змея", "hp": 16, "damage": 6, "speed": 85.0,
         "sheet": SHEET_DIR + "snake.png", "ranged": false,
         "aggro": 110.0, "attack_range": 22.0, "attack_cd": 1.0,
-        "gold": 4, "bolt_color": [0.5, 0.9, 0.55]},
+        "gold": 4, "xp": 6, "bolt_color": [0.5, 0.9, 0.55]},
     {"id": "cosmic_spider", "name": "Космический паук", "hp": 26, "damage": 8,
         "speed": 80.0, "sheet": SHEET_DIR + "cosmic_spider.png", "ranged": false,
         "aggro": 120.0, "attack_range": 24.0, "attack_cd": 1.0,
-        "gold": 6, "bolt_color": [0.72, 0.55, 0.95]},
+        "gold": 6, "xp": 10, "bolt_color": [0.72, 0.55, 0.95]},
     {"id": "undead_bum", "name": "Мертвец бомж", "hp": 34, "damage": 9,
         "speed": 52.0, "sheet": SHEET_DIR + "undead_bum.png", "ranged": false,
         "aggro": 120.0, "attack_range": 24.0, "attack_cd": 1.2,
-        "gold": 8, "bolt_color": [0.6, 0.7, 0.5]},
+        "gold": 8, "xp": 14, "bolt_color": [0.6, 0.7, 0.5]},
     {"id": "undead_knight", "name": "Мертвец рыцарь", "hp": 55, "damage": 13,
         "speed": 58.0, "sheet": SHEET_DIR + "undead_knight.png", "ranged": false,
         "aggro": 130.0, "attack_range": 26.0, "attack_cd": 1.2,
-        "gold": 12, "bolt_color": [0.75, 0.75, 0.8]},
+        "gold": 12, "xp": 22, "bolt_color": [0.75, 0.75, 0.8]},
     {"id": "undead_sorcerer", "name": "Мертвец колдун", "hp": 40, "damage": 11,
         "speed": 44.0, "sheet": SHEET_DIR + "undead_sorcerer.png", "ranged": true,
         "aggro": 150.0, "attack_range": 120.0, "attack_cd": 1.8,
-        "gold": 14, "bolt_color": [0.45, 0.8, 0.6], "bolt_speed": 130.0,
+        "gold": 14, "xp": 20, "bolt_color": [0.45, 0.8, 0.6], "bolt_speed": 130.0,
         "bolt_range_px": 190.0, "keep_distance": 90.0},
     {"id": "demon_swordsman", "name": "Демон мечник", "hp": 75, "damage": 17,
         "speed": 72.0, "sheet": SHEET_DIR + "demon_swordsman.png", "ranged": false,
         "aggro": 130.0, "attack_range": 26.0, "attack_cd": 1.0,
-        "gold": 18, "bolt_color": [0.95, 0.5, 0.3]},
+        "gold": 18, "xp": 30, "bolt_color": [0.95, 0.5, 0.3]},
     {"id": "demon_sorcerer", "name": "Демон колдун", "hp": 60, "damage": 15,
         "speed": 62.0, "sheet": SHEET_DIR + "demon_sorcerer.png", "ranged": true,
         "aggro": 150.0, "attack_range": 120.0, "attack_cd": 1.6,
-        "gold": 22, "bolt_color": [0.95, 0.45, 0.55], "bolt_speed": 150.0,
+        "gold": 22, "xp": 26, "bolt_color": [0.95, 0.45, 0.55], "bolt_speed": 150.0,
         "bolt_range_px": 210.0, "keep_distance": 100.0},
 ]
 
-## Обязательный босс 1-го подземелья: тот самый Таинственный демон,
+## Обязательный босс последнего этажа: тот самый Таинственный демон,
 ## что появлялся на юге карты. Если мы видели его — он узнаёт героя,
 ## говорит об этом, и начинается битва. Лист 72x96 — он втрое крупнее
 ## обычных врагов (как у демона с юга мира). Числа — ЗАГЛУШКИ.
@@ -62,231 +87,600 @@ const BOSS: Dictionary = {
     "speed": 58.0, "sheet": "res://assets/sprites/chars/demon.png",
     "portrait": "res://assets/sprites/portraits/demon.png", "scale": 3,
     "aggro": 260.0, "attack_range": 34.0, "attack_cd": 1.0, "gold": 300,
+    "xp": 200,
+    "knows_hero": true,
+    "role_seen": "узнавший тебя",
+    "role_new": "хозяин подземелья",
+    "lines_seen": [
+        "Ты помнишь меня. Я помню тебя: ты шёл к краю мира и говорил со мной, как с лавочником. Как со «смертным».",
+        "Каждое убийство кормило меня. Каждая монета в моей лавке прошла через твои руки. Ты думал, я торгую? Я собирал.",
+        "Четыре этажа ты спускался к своей могиле. Каждый шаг кормил меня. Я — сама могила. Начнём.",
+    ],
+    "lines_new": [
+        "А вот и ты. Я ждал тебя у края мира, но ты пришёл сюда: из всех дверей замка выбрал мою.",
+        "Я — эхо того, что спит под замком. Мой голос слышали все, кто умирал на этих этажах. Теперь он слышит тебя.",
+        "Неважно, видел ты меня раньше или нет: ты видишь меня сейчас. Этого достаточно.",
+    ],
 }
+
+## Противники данжа 2 «Скит Пустоты» (шаг 16), по возрастанию сложности.
+## Все числа — ЗАГЛУШКИ (утверждает автор). Чтец и старейшина — колдуны:
+## держат дистанцию и швыряют болты Пустоты (см. ИИ "ranged" в dungeon.gd).
+const FOES_2: Array[Dictionary] = [
+    {"id": "cultist_acolyte", "name": "Культист-послушник", "hp": 20,
+        "damage": 8, "speed": 75.0,
+        "sheet": SHEET_DIR + "cultist_acolyte.png", "ranged": false,
+        "aggro": 120.0, "attack_range": 22.0, "attack_cd": 1.1,
+        "gold": 6, "xp": 8, "bolt_color": [0.62, 0.52, 0.9]},
+    {"id": "cultist_fanatic", "name": "Культист-фанатик", "hp": 16,
+        "damage": 11, "speed": 88.0,   # шаг 17: было 95 — как у героя, кайт невозможен
+        "sheet": SHEET_DIR + "cultist_fanatic.png", "ranged": false,
+        "aggro": 140.0, "attack_range": 22.0, "attack_cd": 0.9,
+        "gold": 8, "xp": 10, "bolt_color": [0.9, 0.4, 0.35]},
+    {"id": "cultist_chanter", "name": "Культист-чтец", "hp": 34,
+        "damage": 10, "speed": 48.0,
+        "sheet": SHEET_DIR + "cultist_chanter.png", "ranged": true,
+        "aggro": 150.0, "attack_range": 120.0, "attack_cd": 1.7,
+        "gold": 13, "xp": 16, "bolt_color": [0.62, 0.45, 0.92], "bolt_speed": 140.0,
+        "bolt_range_px": 200.0, "keep_distance": 95.0},
+    {"id": "cultist_guardian", "name": "Культист-тяжеловес", "hp": 68,
+        "damage": 13, "speed": 45.0,
+        "sheet": SHEET_DIR + "cultist_guardian.png", "ranged": false,
+        "aggro": 110.0, "attack_range": 26.0, "attack_cd": 1.4,
+        "gold": 14, "xp": 24, "bolt_color": [0.78, 0.66, 0.4]},
+    {"id": "cultist_elder", "name": "Культист-старейшина", "hp": 50,
+        "damage": 13, "speed": 52.0,
+        "sheet": SHEET_DIR + "cultist_elder.png", "ranged": true,
+        "aggro": 150.0, "attack_range": 130.0, "attack_cd": 1.5,
+        "gold": 18, "xp": 22, "bolt_color": [0.72, 0.55, 0.95], "bolt_speed": 160.0,
+        "bolt_range_px": 230.0, "keep_distance": 105.0},
+]
+
+## Босс данжа 2 (шаг 16): Великий культист со щупальцами — верховный жрец
+## Пустоты, глава скита за второй дверью. Лист 72x96 — втрое крупнее
+## обычных врагов (как у демона данжа 1). Героя никогда не встречал,
+## но Пустота шептала ему о герое — потому реплики одни (lines_new).
+## Числа — ЗАГЛУШКИ. knows_hero=false: demon_seen на него не влияет.
+const BOSS_2: Dictionary = {
+    "id": "boss_cultist_overlord", "name": "Великий культист",
+    "hp": 420, "damage": 15, "speed": 55.0,
+    "sheet": SHEET_DIR + "cultist_overlord.png",
+    "portrait": "res://assets/sprites/portraits/cultist_overlord.png",
+    "scale": 3, "aggro": 260.0, "attack_range": 36.0, "attack_cd": 1.1,
+    "gold": 350, "xp": 250,
+    "role_seen": "верховный жрец Пустоты",
+    "role_new": "верховный жрец Пустоты",
+    "lines_seen": [],
+    "lines_new": [
+        "Так это ты гремишь в наших кельях. Пустота шептала мне о тебе с первого этажа: «идёт смертный, и клинок его поёт».",
+        "Демон? Наш прежний сосед снизу? Он был лишь дверью, а я — то, что за дверью. Он кормился убийствами. Я кормлюсь тишиной.",
+        "Пять видов культистов легли под твой клинок. Ляг и ты: у Пустоты хватит места для всех. Начнём обряд.",
+    ],
+}
+
+## Противники данжа 3 «Глубины Р'льеха» (шаг 20), по возрастанию сложности.
+## Все числа — ЗАГЛУШКИ (утверждает автор). Пожиратель снов — колдун.
+## Скорости ниже 95 (кайт героя, как в данжах 1–2).
+const FOES_3: Array[Dictionary] = [
+    {"id": "deep_one", "name": "Глубинный", "hp": 30, "damage": 10,
+        "speed": 78.0, "sheet": SHEET_DIR + "deep_one.png", "ranged": false,
+        "aggro": 130.0, "attack_range": 24.0, "attack_cd": 1.0,
+        "gold": 10, "xp": 12, "bolt_color": [0.5, 0.85, 0.6]},
+    {"id": "tentacle_crawler", "name": "Ползун щупалец", "hp": 24,
+        "damage": 9, "speed": 86.0,
+        "sheet": SHEET_DIR + "tentacle_crawler.png", "ranged": false,
+        "aggro": 140.0, "attack_range": 22.0, "attack_cd": 0.9,
+        "gold": 11, "xp": 14, "bolt_color": [0.75, 0.55, 0.9]},
+    {"id": "dream_eater", "name": "Пожиратель снов", "hp": 44, "damage": 12,
+        "speed": 48.0, "sheet": SHEET_DIR + "dream_eater.png", "ranged": true,
+        "aggro": 155.0, "attack_range": 125.0, "attack_cd": 1.6,
+        "gold": 16, "xp": 20, "bolt_color": [0.6, 0.9, 0.65],
+        "bolt_speed": 150.0, "bolt_range_px": 220.0, "keep_distance": 100.0},
+    {"id": "star_spawn", "name": "Отродье звёзд", "hp": 60, "damage": 15,
+        "speed": 82.0, "sheet": SHEET_DIR + "star_spawn.png", "ranged": false,
+        "aggro": 140.0, "attack_range": 26.0, "attack_cd": 1.0,
+        "gold": 20, "xp": 26, "bolt_color": [0.5, 0.9, 0.85]},
+    {"id": "shoggoth", "name": "Шоггот", "hp": 95, "damage": 18, "speed": 42.0,
+        "sheet": SHEET_DIR + "shoggoth.png", "ranged": false,
+        "aggro": 110.0, "attack_range": 26.0, "attack_cd": 1.3,
+        "gold": 24, "xp": 32, "bolt_color": [0.55, 0.8, 0.5]},
+]
+
+## Босс данжа 3 (шаг 20, устрашён в шаге 21): Большой Ктулху — спящий
+## под троном Р'льеха. Лист 96x128 — x4, Ктулху нависает над героем как
+## башня тьмы (перерисован tools/gen_cthulhu_step21.py: крылья во всю
+## ширь, борода щупалец, угли-глаза). Героя не знал никогда; знает все
+## имена, включая его. Числа — ЗАГЛУШКИ.
+const BOSS_3: Dictionary = {
+    "id": "boss_cthulhu", "name": "Большой Ктулху", "hp": 850, "damage": 26,
+    "speed": 54.0, "sheet": SHEET_DIR + "boss_cthulhu.png",
+    "portrait": "res://assets/sprites/portraits/boss_cthulhu.png",
+    "scale": 4, "aggro": 300.0, "attack_range": 46.0, "attack_cd": 1.2,
+    "gold": 650, "xp": 500,
+    "role_seen": "спящий в Р'льехе",
+    "role_new": "спящий в Р'льехе",
+    "lines_seen": [],
+    "lines_new": [
+        "Морг. Ты моргнул — а я видел каждый твой день наперёд. Твой приход сюда — моя скука, развеянная на один выдох.",
+        "Культисты пахли страхом. Демон — пеплом. Ты пахнешь сном: я буду есть тебя в каждом сне, что тебе остался.",
+        "Р'льех поднимается, когда кричат звёзды. Умоляй на любом языке — я знаю все. Языки умирают последними.",
+    ],
+}
+
+# ------------------------------------------------------- этажи и темы (шаги 15/20)
+
+const FLOORS := 4
+const MAP_W := 64
+const MAP_H := 48
+
+## Тема этажа: тайлы стен/полов из атласа, цвет «воздуха» (CanvasModulate),
+## плотность декора (паутина/кости/кровь/свечение), пул врагов и их число.
+## wall/floors/glow — координаты тайлов в assets/tilesets/dungeon_tiles.png.
+## hint — реплика при входе на этаж (тон — лавкрафтовский космо-хоррор).
+const THEMES: Array[Dictionary] = [
+    {
+        "id": "catacombs", "name": "Смрадные катакомбы",
+        "wall": Vector2i(2, 0),
+        "floors": [Vector2i(0, 1), Vector2i(1, 1), Vector2i(4, 1)],
+        "glow": Vector2i(5, 2),
+        "canvas": Color(0.8, 0.86, 0.79),
+        "webs": 26, "bones": 10, "blood": 10, "glow_n": 16,
+        "pool": ["spider", "snake"],
+        "foes_min": 7, "foes_max": 9,
+        "hint": "Смрадные катакомбы. Паутина на каждом шагу, и ползёт что-то бесчисленное. Кости у стен — чьи-то, но не твои. Пока не твои.",
+    },
+    {
+        "id": "void_halls", "name": "Пустотные чертоги",
+        "wall": Vector2i(3, 0),
+        "floors": [Vector2i(0, 1), Vector2i(5, 1), Vector2i(1, 1)],
+        "glow": Vector2i(6, 2),
+        "canvas": Color(0.79, 0.76, 0.9),
+        "webs": 8, "bones": 8, "blood": 8, "glow_n": 18,
+        "pool": ["cosmic_spider", "undead_bum"],
+        "foes_min": 8, "foes_max": 10,
+        "hint": "Пустотные чертоги. Камни здесь помнят чужие звёзды: фиолетовые трещины светятся в темноте, и в них смотрит что-то безымянное.",
+    },
+    {
+        "id": "ossuary", "name": "Костяная обитель",
+        "wall": Vector2i(4, 0),
+        "floors": [Vector2i(0, 1), Vector2i(6, 1), Vector2i(1, 1)],
+        "glow": Vector2i(7, 2),
+        "canvas": Color(0.85, 0.84, 0.8),
+        "webs": 4, "bones": 30, "blood": 10, "glow_n": 10,
+        "pool": ["undead_bum", "undead_knight", "undead_sorcerer"],
+        "foes_min": 9, "foes_max": 12,
+        "hint": "Костяная обитель. Пол выстлан костями тех, кто спускался раньше тебя. Мертвецы не любят гостей, а колдуны — тем более.",
+    },
+    {
+        "id": "crimson_lair", "name": "Багровое логово",
+        "wall": Vector2i(5, 0),
+        "floors": [Vector2i(0, 1), Vector2i(7, 1), Vector2i(1, 1)],
+        "glow": Vector2i(0, 3),
+        "canvas": Color(0.9, 0.79, 0.75),
+        "webs": 0, "bones": 8, "blood": 24, "glow_n": 14,
+        "pool": ["demon_swordsman", "demon_sorcerer"],
+        "foes_min": 10, "foes_max": 13,
+        "hint": "Багровое логово. Воздух дрожит от шёпота, угли трещат в темноте. Дорожка ведёт к трону — и к хозяину подземелья.",
+    },
+]
+
+## Темы этажей данжа 2 «Скит Пустоты» (шаг 16). Тайлы — из атласа шага 16:
+## стены (6,0)/(7,0)/(0,4)/(1,4), полы (2,4)..(5,4), трещины (6,4)/(7,4)/(0,5)/(1,5).
+const THEMES_2: Array[Dictionary] = [
+    {
+        "id": "cult_cells", "name": "Шёпотущие кельи",
+        "wall": Vector2i(6, 0),
+        "floors": [Vector2i(2, 4), Vector2i(0, 1), Vector2i(1, 1)],
+        "glow": Vector2i(6, 4),
+        "canvas": Color(0.84, 0.82, 0.87),
+        "webs": 6, "bones": 6, "blood": 6, "glow_n": 12,
+        "pool": ["cultist_acolyte", "cultist_fanatic"],
+        "foes_min": 7, "foes_max": 9,
+        "hint": "Шёпотущие кельи. Здесь жили послушники культа — и до сих пор шепчут молитвы во сне. Не прислушивайся: молитвы адресованы тебе.",
+    },
+    {
+        "id": "light_halls", "name": "Зал свечений",
+        "wall": Vector2i(7, 0),
+        "floors": [Vector2i(3, 4), Vector2i(0, 1), Vector2i(1, 1)],
+        "glow": Vector2i(7, 4),
+        "canvas": Color(0.81, 0.77, 0.9),
+        "webs": 4, "bones": 4, "blood": 8, "glow_n": 20,
+        "pool": ["cultist_acolyte", "cultist_fanatic", "cultist_chanter"],
+        "foes_min": 8, "foes_max": 10,
+        "hint": "Зал свечений. Руны на стенах светятся сами, и свет этот жуткий: он не освещает, а смотрит. Чтецы культа поют в темноте.",
+    },
+    {
+        "id": "sacrarium", "name": "Склеп жертв",
+        "wall": Vector2i(0, 4),
+        "floors": [Vector2i(4, 4), Vector2i(0, 1), Vector2i(1, 1)],
+        "glow": Vector2i(0, 5),
+        "canvas": Color(0.86, 0.8, 0.8),
+        "webs": 0, "bones": 22, "blood": 16, "glow_n": 10,
+        "pool": ["cultist_chanter", "cultist_guardian", "cultist_fanatic"],
+        "foes_min": 9, "foes_max": 12,
+        "hint": "Склеп жертв. Кости под ногами уложены бережно — их любили. Тяжеловесы стерегут проходы, чтецы поют им колыбельные.",
+    },
+    {
+        "id": "void_sanctum", "name": "Святилище Пустоты",
+        "wall": Vector2i(1, 4),
+        "floors": [Vector2i(5, 4), Vector2i(0, 1), Vector2i(1, 1)],
+        "glow": Vector2i(1, 5),
+        "canvas": Color(0.78, 0.74, 0.87),
+        "webs": 0, "bones": 6, "blood": 18, "glow_n": 16,
+        "pool": ["cultist_guardian", "cultist_elder", "cultist_chanter"],
+        "foes_min": 10, "foes_max": 13,
+        "hint": "Святилище Пустоты. Финальные швы камней светятся фиолетовым, и за ними что-то дышит в такт твоим шагам. Верховный жрец ждёт.",
+    },
+]
+
+## Темы этажей данжа 3 «Глубины Р'льеха» (шаг 20). Тайлы — свободные
+## клетки атласа: стены (0,6)/(5,6)/(1,7)/(5,7), полы (2,6)..(7,7),
+## свечение (4,6)/(0,7)/(4,7)/(2,5) — см. tools/gen_dungeon3.py.
+const THEMES_3: Array[Dictionary] = [
+    {
+        "id": "drowned_grottos", "name": "Затопленные гроты",
+        "wall": Vector2i(0, 6),
+        "floors": [Vector2i(2, 6), Vector2i(3, 6), Vector2i(0, 1)],
+        "glow": Vector2i(4, 6),
+        "canvas": Color(0.78, 0.86, 0.8),
+        "webs": 4, "bones": 6, "blood": 6, "glow_n": 16,
+        "pool": ["deep_one", "tentacle_crawler"],
+        "foes_min": 7, "foes_max": 9,
+        "hint": "Затопленные гроты. Вода стоит по колено веками, и в ней смотрят глаза. Глубинные не любят гостей — они их едят.",
+    },
+    {
+        "id": "forbidden_library", "name": "Библиотека запретных имён",
+        "wall": Vector2i(5, 6),
+        "floors": [Vector2i(6, 6), Vector2i(7, 6), Vector2i(0, 1)],
+        "glow": Vector2i(0, 7),
+        "canvas": Color(0.82, 0.84, 0.82),
+        "webs": 10, "bones": 4, "blood": 4, "glow_n": 14,
+        "pool": ["dream_eater", "deep_one", "tentacle_crawler"],
+        "foes_min": 8, "foes_max": 10,
+        "hint": "Библиотека запретных имён. Здесь хранят слова, от которых ломаются языки. Читай тихо: Пожиратели снов слушают.",
+    },
+    {
+        "id": "tentacle_nest", "name": "Гнездо щупалец",
+        "wall": Vector2i(1, 7),
+        "floors": [Vector2i(2, 7), Vector2i(3, 7), Vector2i(0, 1)],
+        "glow": Vector2i(4, 7),
+        "canvas": Color(0.86, 0.8, 0.82),
+        "webs": 0, "bones": 10, "blood": 22, "glow_n": 12,
+        "pool": ["tentacle_crawler", "star_spawn", "shoggoth"],
+        "foes_min": 9, "foes_max": 12,
+        "hint": "Гнездо щупалец. Пол дышит, стены сократаются, и по потолку течёт что-то живое. Отродья звёзд стерегут кладку.",
+    },
+    {
+        "id": "rlyeh_throne", "name": "Трон Р'льеха",
+        "wall": Vector2i(5, 7),
+        "floors": [Vector2i(6, 7), Vector2i(7, 7), Vector2i(0, 1)],
+        "glow": Vector2i(2, 5),
+        "canvas": Color(0.76, 0.82, 0.78),
+        "webs": 0, "bones": 8, "blood": 18, "glow_n": 18,
+        "pool": ["star_spawn", "shoggoth", "dream_eater"],
+        "foes_min": 10, "foes_max": 13,
+        "hint": "Трон Р'льеха. Плиты старше замка, старше мира. Под ними спит Большой Ктулху — и ты разбудил его.",
+    },
+]
+
+## Реестр подземелий (шаг 16): имя для HUD и реплики-подсказки этажей/босса.
+const DUNGEONS: Array[Dictionary] = [
+    {
+        "id": "dungeon_1", "name": "Подземелье замка",
+        "intro_hint": "Подземелье замка. Четыре огромных этажа вниз, и на каждом что-то шевелится. На самом дне ждёт тот, кто уже знает твоё имя.",
+        "boss_floor_hint": "Уровень 4 из 4. Воздух дрожит от шёпота. Хозяин подземелья ждёт тебя.",
+        "boss_floor_done_hint": "Уровень 4 из 4. Здесь пахнет пеплом: хозяин подземелья уже повержен. Лестница в замок открыта.",
+        "boss_hostile_hint": "Демон бросается в бой! Ни лавки, ни милосердия — только когти и тьма.",
+        "boss_defeated_hint": "Демон повержен! Убитые тобой жители вернулись в замок и ничего не помнят. Демон больше не вернётся — ни сюда, ни к краю мира.",
+        "boss_epic_hint": "Среди пепла демона осталось оружие — %s. Эпическая добыча, она твоя.",
+    },
+    {
+        "id": "dungeon_2", "name": "Скит Пустоты",
+        "intro_hint": "Скит Пустоты. За второй дверью живут те, кто молится тому, что спит под замком. Четыре этажа вниз — и они знают, что ты идёшь.",
+        "boss_floor_hint": "Уровень 4 из 4. Шёпот стих: верховный жрец ждёт в святилище.",
+        "boss_floor_done_hint": "Уровень 4 из 4. Святилище опустело: верховный жрец повержен. Лестница в замок открыта.",
+        "boss_hostile_hint": "Великий культист начинает обряд! Щупальца Пустоты тянутся к тебе.",
+        "boss_defeated_hint": "Верховный жрец повержен! Культ обезглавлен, скит замолчал. Пустота запомнила твой клинок — но подождёт.",
+        "boss_epic_hint": "Среди пепла жреца осталось оружие — %s. Эпическая добыча культа, она твоя.",
+    },
+    {
+        "id": "dungeon_3", "name": "Глубины Р'льеха",
+        "intro_hint": "Глубины Р'льеха. За третьей дверью — город, которого нет на картах: гроты, библиотека запретных имён и трон спящего. Четыре этажа вниз.",
+        "boss_floor_hint": "Уровень 4 из 4. Плиты гудят во сне. Большой Ктулху ждёт на троне.",
+        "boss_floor_done_hint": "Уровень 4 из 4. Трон пуст: спящий снова спит — теперь надолго. Лестница в замок открыта.",
+        "boss_hostile_hint": "Большой Ктулху проснулся! Небо над Р'льехом гаснет, крылья заслоняют свет, и щупальца тянутся к тебе.",
+        "boss_defeated_hint": "Большой Ктулху повержен! Р'льех уходит обратно в сон, и глубины замолкают. Твой клинок теперь знает это имя.",
+        "boss_epic_hint": "Среди чешуи спящего осталось оружие — %s. Эпическая добыча глубин, она твоя.",
+        ## Шаг 21: шёпоты Р'льеха во время битвы (по кругу, каждые ~11 с).
+        "boss_whispers": [
+            "Шёпот Р'льеха: «Ты умер недели назад. Ты просто ещё не понял.»",
+            "Шёпот Р'льеха: «Твоё имя я выплюну, когда наемся.»",
+            "Шёпот Р'льеха: «Смотри мне в глаза. Они — двери.»",
+            "Шёпот Р'льеха: «Глубина дышит тобой и не замечает.»",
+        ],
+    },
+]
+
+## Определение подземелья по id (первый — на случай неизвестного id).
+static func dungeon_meta(dungeon_id: String) -> Dictionary:
+    for d in DUNGEONS:
+        if String(d.get("id", "")) == dungeon_id:
+            return d
+    return DUNGEONS[0]
+
+## Короткое имя подземелья для HUD («Подземелье · ур. N/4»).
+static func dungeon_name(dungeon_id: String) -> String:
+    return String(dungeon_meta(dungeon_id).get("name", "Подземелье"))
+
+## Определение босса по подземелью (шаги 16/20: у данжей 2 и 3 свои боссы).
+static func boss_for(dungeon_id: String) -> Dictionary:
+    if dungeon_id == "dungeon_2":
+        return BOSS_2
+    if dungeon_id == "dungeon_3":
+        return BOSS_3
+    return BOSS
+
+## Тема этажа (с защитой от неверных номеров при загрузке старых сейвов).
+static func theme_for_floor(floor_num: int, dungeon_id: String = "dungeon_1") -> Dictionary:
+    var themes := THEMES
+    if dungeon_id == "dungeon_2":
+        themes = THEMES_2
+    elif dungeon_id == "dungeon_3":
+        themes = THEMES_3
+    return themes[clampi(floor_num - 1, 0, themes.size() - 1)]
 
 ## Награда за врага: золото ЗАГЛУШКА — растёт с глубиной этажа.
 static func foe_gold(def: Dictionary, floor_num: int) -> int:
-    return int(def.get("gold", 3)) + floor_num * 2
+    return int(def.get("gold", 3)) + floor_num * 3
 
-## Определение врага по id (пустой словарь — не найден).
+## Определение врага по id: ищем в обоих бестиариях (пустой — не найден).
 static func foe_def(foe_id: String) -> Dictionary:
-    for def in FOES:
-        if String(def.get("id", "")) == foe_id:
-            return def
+    for source: Array in [FOES, FOES_2, FOES_3]:
+        for def in source:
+            if String(def.get("id", "")) == foe_id:
+                return def
     return {}
 
-## Пул врагов этажа: чем глубже, тем страшнее виды. Этаж 1 — пауки и змеи,
-## с 7-го — все восемь, на 10-м — только высшие демоны (плюс босс).
-static func pool_for_floor(floor_num: int) -> Array[Dictionary]:
-    var pool: Array[Dictionary] = []
-    if floor_num >= 10:
-        for i in range(6, FOES.size()):
-            pool.append(FOES[i])
-        return pool
-    var count := mini(FOES.size(), 1 + floor_num)
-    for i in range(count):
-        pool.append(FOES[i])
-    return pool
+## Пул врагов этажа — по теме этажа (шаг 15: строгая прогрессия видов).
+static func pool_for_floor(floor_num: int, dungeon_id: String = "dungeon_1") -> Array:
+    return theme_for_floor(floor_num, dungeon_id).get("pool", ["spider"])
 
-## Сколько врагов на этаже: от 1 до 5 (босс 10-го этажа — отдельно).
-static func foe_count_for_floor(_floor_num: int) -> int:
-    return randi_range(1, 5)
+## Сколько врагов на этаже: 7–13 по мере глубины (босс последнего — отдельно).
+static func foe_count_for_floor(floor_num: int, dungeon_id: String = "dungeon_1") -> int:
+    var theme := theme_for_floor(floor_num, dungeon_id)
+    return randi_range(int(theme.get("foes_min", 7)),
+        int(theme.get("foes_max", 9)))
 
 # --------------------------------------------------------- генерация этажа
 
-const MAP_W := 40
-const MAP_H := 36
-const FLOORS := 10
-## Сундуков на этаж (шаг 14): от 1 до 2, стоят на свободных полах.
-const CHESTS_MIN := 1
-const CHESTS_MAX := 2
+## Сундуков на этаж (шаг 15; шаг 19 — больше): 3–5 раскиданы по комнатам,
+## ещё 2 — в сокровищнице (этажи 1–3) или в зале босса (этаж 4). Итого 5–7.
+const CHESTS_MIN := 3
+const CHESTS_MAX := 5
+## Факелов на этаж: по стенам комнат и коридоров.
+const TORCHES_MIN := 10
+const TORCHES_MAX := 14
 
 ## Символы сетки: "#" — стена (твёрдая), "o" — колонна (твёрдая),
-## "." / "," / ";" — каменный пол (три оттенка), "b" — пол с костями,
+## "." — каменный пол, "b" — пол с костями, "w" — паутина, "x" — кровь,
+## "g" — светящаяся трещина, "p" — ковёр, "m" — золотая мозаика,
 ## "<" — лестница наверх, ">" — лестница вниз, "X" — выход в замок.
+## Все, кроме "#" и "o", проходимы; спавнить врагов/сундуки можно
+## только на «чистых полах» (см. _open_floor).
 const SOLID := "#o"
 
-## Сгенерировать этаж floor_num (1..10): комнаты соединены коридорами,
-## лестница вверх и вниз, враги, сундуки и (на 10-м) босс. Возвращает:
+## Сгенерировать этаж floor_num (1..4). Возвращает:
 ## {"grid": Array[String], "spawn": Vector2i, "up": Vector2i,
-##  "down": Vector2i (Vector2i(-1,-1) на 10-м этаже),
-##  "foe_tiles": Array[Vector2i], "chest_tiles": Array[Vector2i] (1–2 сундука),
+##  "down": Vector2i (Vector2i(-1,-1) на этаже босса),
+##  "foe_spawns": Array[Dictionary] — {"tile": Vector2i, "id": String,
+##      "elite": bool} (элитные чемпионы: больше хп/урона/золота),
+##  "chest_tiles": Array[Vector2i] (4–5 сундуков),
+##  "torch_tiles": Array[Vector2i] (факелы у стен),
+##  "prop_tiles": Array[Dictionary] — {"tile": Vector2i, "kind": String}
+##      (бочки, ящики, кристаллы, жаровни, трон),
+##  "vault_center": Vector2i (центр сокровищницы; Vector2i(-1,-1) на этаже
+##      босса — там вместо неё большой зал),
 ##  "boss_tile": Vector2i (Vector2i(-1,-1), если босса нет — он уже убит
 ##  навсегда или этаж не последний),
-##  "exit_tile": Vector2i (появляется на 10-м этаже после победы)}
-static func generate_floor(floor_num: int, boss_present: bool) -> Dictionary:
+##  "exit_tile": Vector2i (появляется на этаже босса после победы)}
+static func generate_floor(floor_num: int, boss_present: bool,
+        dungeon_id: String = "dungeon_1") -> Dictionary:
+    var is_boss_floor := floor_num >= FLOORS
     var grid: Array[String] = []
     for y in range(MAP_H):
         grid.append("#".repeat(MAP_W))
+
+    # зал босса: большой прямоугольник + прихожая с лестницей наверх;
+    # обычные этажи: 10–13 комнат
     var rooms: Array[Rect2i] = []
-    if floor_num >= 10:
-        rooms = _carve_boss_hall(grid)
+    var hall := Rect2i(-1, -1, 0, 0)
+    var ante := Rect2i(-1, -1, 0, 0)
+    if is_boss_floor:
+        hall = Rect2i(21, 5, 22, 14)
+        _carve_rect(grid, hall)
+        ante = Rect2i(30, 20, 4, 5)
+        _carve_rect(grid, ante)
+        # проход из зала в прихожую шириной 3 (шаг 17: кайт)
+        _carve_rect(grid, Rect2i(31, hall.end.y, 3,
+            ante.position.y - hall.end.y))
+        rooms.append(hall)
+        rooms.append(ante)
+        rooms.append_array(_carve_rooms(grid, rooms))
     else:
         rooms = _carve_rooms(grid)
+
+    # декор: колонны в больших залах, паутина/кости/кровь/свечение по теме.
+    # ДО коридоров: коридоры вырезаются поверх декора, поэтому колонна
+    # не может перекрыть единственный путь (шаг 15)
+    _sprinkle_decor(grid, rooms, theme_for_floor(floor_num, dungeon_id))
     _connect_rooms(grid, rooms)
 
+    # лестницы: наверх — в стартовой комнате (на этаже босса — в прихожей,
+    # чтобы герой входил издалека); вниз — в самой дальней комнате
     var spawn := Vector2i(-1, -1)
-    var down := Vector2i(-1, -1)
-    # лестница наверх: в первой комнате; на этаже босса — в прихожей,
-    # чтобы герой входил издалека и слышал босса, подходя по залу
-    var up: Vector2i
-    if floor_num >= 10:
-        up = _room_center(rooms[1])
-    else:
-        up = _room_center(rooms[0])
+    var up: Vector2i = _room_center(rooms[0])
+    if is_boss_floor:
+        up = _room_center(ante)
     _set_cell(grid, up, "<")
     spawn = up
-    if floor_num < 10:
+    var down := Vector2i(-1, -1)
+    if not is_boss_floor:
         down = _room_center(rooms[rooms.size() - 1])
         _set_cell(grid, down, ">")
 
-    # босс: центр зала (10-й этаж, если он ещё жив)
+    # босс: на ковровой дорожке зала (этаж последний и он ещё жив)
     var boss_tile := Vector2i(-1, -1)
-    if floor_num >= 10 and boss_present:
-        boss_tile = Vector2i(MAP_W / 2, rooms[0].position.y + 3)
+    if is_boss_floor and boss_present:
+        boss_tile = Vector2i(hall.position.x + hall.size.x / 2,
+            hall.position.y + 5)
         _set_cell(grid, boss_tile, ".")
 
-    # декор: кости и колонны в больших залах — ДО врагов, чтобы колонна
-    # не появилась на клетке врага (и не замуровала его)
-    _sprinkle_decor(grid, rooms)
+    # гарантированный декор зала босса (шаг 15): жаровни по углам и трон
+    # за боссом — ДО врагов, чтобы никто не встал на их место;
+    # эти клетки «резервируются» для врагов и сундуков
+    var reserved: Array[Vector2i] = []
+    var hall_props: Array[Dictionary] = []
+    if is_boss_floor and hall.size.x > 0:
+        _pick_hall_props(grid, hall, boss_tile, spawn, up,
+            hall_props, reserved)
 
-    # враги: по свободным полам; на обычных этажах — в комнатах кроме
-    # стартовой, на этаже босса — в самом зале (не вплотную к боссу).
-    # Декор уже стоит: _walkable отсеет колонны.
-    var foe_tiles: Array[Vector2i] = []
-    var free: Array[Vector2i] = []
-    if floor_num >= 10:
-        var hall: Rect2i = rooms[0]
-        for y in range(hall.position.y, hall.end.y):
-            for x in range(hall.position.x, hall.end.x):
-                var t := Vector2i(x, y)
-                if _walkable(grid, t) and t.distance_squared_to(boss_tile) > 36:
-                    free.append(t)
-    else:
-        for r in range(1, rooms.size()):
-            var room: Rect2i = rooms[r]
-            for y in range(room.position.y, room.end.y):
-                for x in range(room.position.x, room.end.x):
-                    var t := Vector2i(x, y)
-                    if _walkable(grid, t):
-                        free.append(t)
-    var want := foe_count_for_floor(floor_num)
-    var guard := 0
-    while foe_tiles.size() < want and not free.is_empty() and guard < 500:
-        guard += 1
-        var idx := randi() % free.size()
-        var t: Vector2i = free[idx]
-        free.remove_at(idx)
-        if _far_enough(grid, foe_tiles, t) and t.distance_squared_to(spawn) > 100:
-            foe_tiles.append(t)
+    # сокровищница: самая дальняя от входа комната выстлана золотой
+    # мозаикой (этажи 1–3; на этаже босса вместо неё — большой зал)
+    var vault := Rect2i(-1, -1, 0, 0)
+    var vault_center := Vector2i(-1, -1)
+    if not is_boss_floor and rooms.size() >= 3:
+        vault = _farthest_room(rooms, _room_center(rooms[0]))
+        vault_center = _room_center(vault)
+        _fill_rect(grid, vault, "m")
 
-    # сундуки (шаг 14): 1–2 на этаж, на свободных полах — не на лестницах,
-    # не на старте (вплотную к нему), не на клетке врага и не друг на друге
-    var chest_tiles := _pick_chest_tiles(grid, spawn, up, down, boss_tile,
-        foe_tiles)
+    # ковровая дорожка к трону босса: только по чистым полам — лестницы,
+    # тайл босса и мозаика не затрагиваются
+    if is_boss_floor:
+        var cx := hall.position.x + hall.size.x / 2
+        for y in range(hall.position.y + 3,
+                _room_center(ante).y + 1):
+            if String(grid[y][cx]) == ".":
+                _set_cell(grid, Vector2i(cx, y), "p")
+
+    # враги: по свободным полам; стартовая комната и прихожая — тихие,
+    # сокровищница — территория хранителя, в зале босса — не вплотную
+    # к боссу. Элитные чемпионы: хранитель сокровищницы (всегда элита)
+    # плюс 0–2 случайных чемпиона.
+    var foe_spawns := _pick_foe_spawns(grid, rooms, spawn, down, boss_tile,
+        vault, vault_center, floor_num, is_boss_floor, reserved, dungeon_id)
+
+    # сундуки: 2 в сокровищнице (или в зале босса по углам) + 2–3 по этажу
+    var chest_tiles := _pick_chest_tiles(grid, rooms, spawn, up, down,
+        boss_tile, vault, vault_center, foe_spawns, is_boss_floor, hall,
+        reserved)
+
+    # рассыпанный реквизит: бочки/ящики/кристаллы по комнатам и в
+    # сокровищнице (жаровни и трон уже стоят). Реквизит ДО факелов:
+    # факелы не встанут на занятую клетку (шаг 15)
+    var prop_tiles := hall_props
+    prop_tiles.append_array(_pick_prop_tiles(grid, rooms, spawn, up, down,
+        boss_tile, chest_tiles, foe_spawns, floor_num,
+        is_boss_floor, hall, vault, reserved))
+
+    # факелы: полы у стен, вдали от сундуков и друг от друга
+    var torch_tiles := _pick_torch_tiles(grid, spawn, up, down, boss_tile,
+        chest_tiles, foe_spawns, prop_tiles)
+
+    var exit_tile := Vector2i(-1, -1)
+    if is_boss_floor and not boss_present:
+        # босс уже повержен навсегда: выход ждёт в прихожей зала,
+        # рядом с лестницей наверх
+        exit_tile = _room_center(ante) + Vector2i(1, 0)
+        if not _open_floor(grid, exit_tile):
+            exit_tile = _room_center(ante)
 
     return {"grid": grid, "spawn": spawn, "up": up, "down": down,
-        "foe_tiles": foe_tiles, "chest_tiles": chest_tiles,
-        "boss_tile": boss_tile, "exit_tile": Vector2i(-1, -1)}
+        "foe_spawns": foe_spawns, "chest_tiles": chest_tiles,
+        "torch_tiles": torch_tiles, "prop_tiles": prop_tiles,
+        "vault_center": vault_center, "boss_tile": boss_tile,
+        "exit_tile": exit_tile}
 
-## Выбрать тайлы сундуков: случайные полы вдали от спавна (2 тайла),
-## лестниц, врагов (вплотную) и уже выбранных сундуков.
-static func _pick_chest_tiles(grid: Array[String], spawn: Vector2i,
-        up: Vector2i, down: Vector2i, boss_tile: Vector2i,
-        foe_tiles: Array[Vector2i]) -> Array[Vector2i]:
-    var chest_tiles: Array[Vector2i] = []
-    var floors_all: Array[Vector2i] = []
-    for y in range(MAP_H):
-        for x in range(MAP_W):
-            var t := Vector2i(x, y)
-            if _walkable(grid, t):
-                floors_all.append(t)
-    var want := randi_range(CHESTS_MIN, CHESTS_MAX)
-    var guard := 0
-    while chest_tiles.size() < want and not floors_all.is_empty() \
-            and guard < 400:
-        guard += 1
-        var idx := randi() % floors_all.size()
-        var t: Vector2i = floors_all[idx]
-        floors_all.remove_at(idx)
-        if t == spawn or t == up or t == down or t == boss_tile:
-            continue
-        if t.distance_squared_to(spawn) <= 36:
-            continue
-        var on_foe := false
-        for ft in foe_tiles:
-            if t.distance_squared_to(ft) <= 4:
-                on_foe = true
-                break
-        if on_foe or not _far_enough(grid, chest_tiles, t):
-            continue
-        chest_tiles.append(t)
-    return chest_tiles
-
-## Проходимый тайл (пол, а не стена и не лестница).
-static func _walkable(grid: Array[String], t: Vector2i) -> bool:
+## Проходимый «чистый» пол (можно спавнить врагов, сундуки, декор):
+## не стена/колонна и не лестница/выход.
+static func _open_floor(grid: Array[String], t: Vector2i) -> bool:
     if t.x < 0 or t.y < 0 or t.x >= MAP_W or t.y >= MAP_H:
         return false
-    return String(grid[t.y][t.x]) == "." or String(grid[t.y][t.x]) == "," \
-        or String(grid[t.y][t.x]) == ";"
+    var ch := String(grid[t.y][t.x])
+    return not SOLID.contains(ch) and ch != "<" and ch != ">" and ch != "X"
 
-## Зал босса: большой прямоугольник + прихожая с лестницей наверх.
-static func _carve_boss_hall(grid: Array[String]) -> Array[Rect2i]:
-    var hall := Rect2i(9, 5, 22, 13)
-    for y in range(hall.position.y, hall.end.y):
-        for x in range(hall.position.x, hall.end.x):
+## Прямоугольная комната, вырезанная в камне.
+static func _carve_rect(grid: Array[String], rect: Rect2i) -> void:
+    for y in range(rect.position.y, rect.end.y):
+        for x in range(rect.position.x, rect.end.x):
             _set_cell(grid, Vector2i(x, y), ".")
-    var ante := Rect2i(17, 18, 6, 7)
-    for y in range(ante.position.y, ante.end.y):
-        for x in range(ante.position.x, ante.end.x):
-            _set_cell(grid, Vector2i(x, y), ".")
-    # проход из зала в прихожую (двухтайловый)
-    for y in range(hall.end.y - 1, ante.position.y):
-        _set_cell(grid, Vector2i(19, y), ".")
-        _set_cell(grid, Vector2i(20, y), ".")
-    return [hall, ante]
 
-## Комнаты: 6-9 прямоугольников без пересечений (с зазором 1 тайл).
-static func _carve_rooms(grid: Array[String]) -> Array[Rect2i]:
+## Выложить чистые полы прямоугольника заданным символом (мозаика
+## сокровищницы); лестницы и прочие особые тайлы не трогаются.
+static func _fill_rect(grid: Array[String], rect: Rect2i, symbol: String) -> void:
+    for y in range(rect.position.y, rect.end.y):
+        for x in range(rect.position.x, rect.end.x):
+            var t := Vector2i(x, y)
+            if String(grid[t.y][t.x]) == ".":
+                _set_cell(grid, t, symbol)
+
+## Комнаты: 10–13 прямоугольников без пересечений (с зазором 1 тайл);
+## avoid — уже занятые залы (зал босса и прихожая на 4-м этаже).
+static func _carve_rooms(grid: Array[String], avoid: Array[Rect2i] = []) \
+        -> Array[Rect2i]:
     var rooms: Array[Rect2i] = []
-    var want := randi_range(6, 9)
+    var want := randi_range(10, 13)
     var guard := 0
-    while rooms.size() < want and guard < 300:
+    while rooms.size() < want and guard < 600:
         guard += 1
-        var w := randi_range(5, 9)
-        var h := randi_range(4, 6)
+        var w := randi_range(6, 13)
+        var h := randi_range(5, 9)
         var x := randi_range(1, MAP_W - w - 1)
         var y := randi_range(1, MAP_H - h - 1)
         var room := Rect2i(x, y, w, h)
         var overlaps := false
-        for other in rooms:
-            # Rect2i.grow (не «grows»): расширение на 1 тайл — зазор между комнатами
+        for other in avoid:
+            # Rect2i.grow (не «grows»): расширение на 1 тайл — зазор
             if room.grow(1).intersects(other.grow(1)):
                 overlaps = true
                 break
+        if not overlaps:
+            for other in rooms:
+                if room.grow(1).intersects(other.grow(1)):
+                    overlaps = true
+                    break
         if overlaps:
             continue
         rooms.append(room)
-        for yy in range(room.position.y, room.end.y):
-            for xx in range(room.position.x, room.end.x):
-                _set_cell(grid, Vector2i(xx, yy), ".")
+        _carve_rect(grid, room)
     if rooms.is_empty():
-        var fallback := Rect2i(2, 2, 8, 6)
+        var fallback := Rect2i(2, 2, 9, 6)
         rooms.append(fallback)
-        for yy in range(fallback.position.y, fallback.end.y):
-            for xx in range(fallback.position.x, fallback.end.x):
-                _set_cell(grid, Vector2i(xx, yy), ".")
+        _carve_rect(grid, fallback)
     return rooms
 
-## Соединить комнаты последовательными Г-образными коридорами шириной 2.
+## Самая дальняя от точки комната (для сокровищницы).
+static func _farthest_room(rooms: Array[Rect2i], from: Vector2i) -> Rect2i:
+    var best := rooms[0]
+    var best_d := -1.0
+    for i in range(1, rooms.size()):
+        var d := float(_room_center(rooms[i]).distance_squared_to(from))
+        if d > best_d:
+            best_d = d
+            best = rooms[i]
+    return best
+
+## Соединить комнаты последовательными Г-образными коридорами шириной 3
+## (шаг 17: в коридоре 3 тайлов — 48 px в свету — герой, круг ~10 px,
+## обходит встречного врага и отступает для кайтинга; ширина 2 не давала
+## разойтись) плюс пара случайных петель, чтобы карта не была тупиковой
+## цепочкой.
 static func _connect_rooms(grid: Array[String], rooms: Array[Rect2i]) -> void:
     for i in range(1, rooms.size()):
         var a := _room_center(rooms[i - 1])
         var b := _room_center(rooms[i])
         _carve_l_corridor(grid, a, b)
-    # пара случайных петель, чтобы карта не была тупиковой цепочкой
     if rooms.size() >= 4:
-        var extra := randi_range(1, 2)
+        var extra := randi_range(2, 4)
         for i in range(extra):
             var a := _room_center(rooms[randi() % rooms.size()])
             var b := _room_center(rooms[randi() % rooms.size()])
@@ -296,43 +690,367 @@ static func _connect_rooms(grid: Array[String], rooms: Array[Rect2i]) -> void:
 static func _carve_l_corridor(grid: Array[String], a: Vector2i, b: Vector2i) -> void:
     var x := a.x
     var y := a.y
+    # горизонтальный ход: три клетки по вертикали (ширина 3)
     while x != b.x:
-        _carve_corridor_cell(grid, x, y)
+        _carve_strip_h(grid, x, y)
         if x < b.x:
-            _carve_corridor_cell(grid, x + 1, y)
+            _carve_strip_h(grid, x + 1, y)
         x += 1 if x < b.x else -1
+    # вертикальный ход: три клетки по горизонтали (ширина 3 — иначе
+    # реквизит или колонна замуруют единственный путь, шаг 15)
     while y != b.y:
-        _carve_corridor_cell(grid, x, y)
+        _carve_strip_v(grid, x, y)
         if y < b.y:
-            _carve_corridor_cell(grid, x, y + 1)
+            _carve_strip_v(grid, x, y + 1)
         y += 1 if y < b.y else -1
-    _carve_corridor_cell(grid, x, y)
+    _carve_strip_v(grid, x, y)
 
-## Клетка коридора и клетка ниже/выше неё (ширина коридора 2 тайла).
-static func _carve_corridor_cell(grid: Array[String], x: int, y: int) -> void:
+## Клетка горизонтального коридора + две под ней (ширина коридора 3).
+## Край карты не трогается: _set_cell сам игнорирует границу, а центры
+## комнат всегда отстоят от края минимум на 2 клетки.
+static func _carve_strip_h(grid: Array[String], x: int, y: int) -> void:
     _set_cell(grid, Vector2i(x, y), ".")
-    if y + 1 < MAP_H - 1:
-        _set_cell(grid, Vector2i(x, y + 1), ".")
+    _set_cell(grid, Vector2i(x, y + 1), ".")
+    _set_cell(grid, Vector2i(x, y + 2), ".")
 
-## Кости и мох на случайных полах; колонны по углам больших комнат
-## (только на полу — чтобы не перекрыть лестницу или коридор).
-static func _sprinkle_decor(grid: Array[String], rooms: Array[Rect2i]) -> void:
+## Клетка вертикального коридора + две справа (ширина коридора 3).
+static func _carve_strip_v(grid: Array[String], x: int, y: int) -> void:
+    _set_cell(grid, Vector2i(x, y), ".")
+    _set_cell(grid, Vector2i(x + 1, y), ".")
+    _set_cell(grid, Vector2i(x + 2, y), ".")
+
+## Декор по теме этажа: колонны по углам больших комнат и рядами в широких
+## залах; паутина, кости, кровь и светящиеся трещины на случайных полах.
+static func _sprinkle_decor(grid: Array[String], rooms: Array[Rect2i],
+        theme: Dictionary) -> void:
     for room in rooms:
         if room.size.x >= 7 and room.size.y >= 5:
             for corner in [Vector2i(1, 1), Vector2i(room.size.x - 2, 1),
                     Vector2i(1, room.size.y - 2),
                     Vector2i(room.size.x - 2, room.size.y - 2)]:
                 var t: Vector2i = room.position + corner
-                if randi() % 3 != 0 and _walkable(grid, t):
+                if randi() % 3 != 0 and String(grid[t.y][t.x]) == ".":
                     _set_cell(grid, t, "o")
-    var floors: Array[Vector2i] = []
+        # широкие залы: колонны рядами (как в храме)
+        if room.size.x >= 11 and room.size.y >= 7:
+            var col_x := [room.position.x + 3, room.end.x - 4]
+            for yy in range(room.position.y + 2, room.end.y - 2, 3):
+                for xx in col_x:
+                    var t2 := Vector2i(xx, yy)
+                    if String(grid[t2.y][t2.x]) == ".":
+                        _set_cell(grid, t2, "o")
+    # мягкий декор: только на чистых полах, не на лестницах
+    var counts := {"w": int(theme.get("webs", 8)),
+        "b": int(theme.get("bones", 8)),
+        "x": int(theme.get("blood", 8)),
+        "g": int(theme.get("glow_n", 10))}
+    for symbol in counts:
+        var floors: Array[Vector2i] = []
+        for y in range(MAP_H):
+            for x in range(MAP_W):
+                var t3 := Vector2i(x, y)
+                if String(grid[t3.y][t3.x]) == ".":
+                    floors.append(t3)
+        var want: int = counts[symbol]
+        var guard := 0
+        var placed := 0
+        while placed < want and not floors.is_empty() and guard < 500:
+            guard += 1
+            var idx := randi() % floors.size()
+            var t4 := floors[idx]
+            floors.remove_at(idx)
+            _set_cell(grid, t4, symbol)
+            placed += 1
+
+## Гарантированный декор зала босса: жаровни в двух углах, трон за боссом.
+## Заполняет hall_props и резервирует клетки (враги/сундуки их обходят).
+static func _pick_hall_props(grid: Array[String], hall: Rect2i,
+        boss_tile: Vector2i, spawn: Vector2i, up: Vector2i,
+        hall_props: Array[Dictionary], reserved: Array[Vector2i]) -> void:
+    var spots: Array[Dictionary] = [
+        {"tile": Vector2i(hall.position.x + 2, hall.position.y + 2),
+            "kind": "brazier"},
+        {"tile": Vector2i(hall.end.x - 3, hall.end.y - 3),
+            "kind": "brazier"},
+    ]
+    if boss_tile.x >= 0:
+        spots.append({"tile": boss_tile + Vector2i(0, -3), "kind": "throne"})
+    for spec in spots:
+        var t: Vector2i = spec["tile"]
+        if t == spawn or t == up or not _open_floor(grid, t):
+            continue
+        if reserved.has(t):
+            continue
+        hall_props.append(spec)
+        reserved.append(t)
+
+## Враги этажа: {"tile": Vector2i, "id": String, "elite": bool}.
+## Этаж босса: часть миньонов в самом зале (не вплотную к боссу),
+## остальные по обычным комнатам; прихожая всегда тихая.
+static func _pick_foe_spawns(grid: Array[String], rooms: Array[Rect2i],
+        spawn: Vector2i, _down: Vector2i, boss_tile: Vector2i,
+        vault: Rect2i, vault_center: Vector2i, floor_num: int,
+        is_boss_floor: bool, reserved: Array[Vector2i],
+        dungeon_id: String = "dungeon_1") -> Array[Dictionary]:
+    var spawns: Array[Dictionary] = []
+    var pool: Array = pool_for_floor(floor_num, dungeon_id)
+    var free: Array[Vector2i] = []
+    for i in range(rooms.size()):
+        var room := rooms[i]
+        # прихожая зала босса (rooms[1]) — тихая входная зона
+        if is_boss_floor and i == 1:
+            continue
+        # сокровищница — территория хранителя: случайные враги туда
+        # не попадают (и не забивают сундуками каждый угол)
+        if not is_boss_floor and vault.size.x > 0 and room == vault:
+            continue
+        for y in range(room.position.y, room.end.y):
+            for x in range(room.position.x, room.end.x):
+                var t := Vector2i(x, y)
+                if not _open_floor(grid, t) or reserved.has(t):
+                    continue
+                # в зале босса миньоны не подходят к трону вплотную (7 тайлов)
+                if is_boss_floor and i == 0 and boss_tile.x >= 0 \
+                        and t.distance_squared_to(boss_tile) <= 49:
+                    continue
+                free.append(t)
+    var want := foe_count_for_floor(floor_num, dungeon_id)
+    # стартовая зона: на обычных этажах враги дальше 10 тайлов от входа,
+    # на этаже босса — дальше 8 (зал большой, но прихожая должна быть тихой)
+    var spawn_dist := 64 if is_boss_floor else 100
+    var guard := 0
+    while spawns.size() < want and not free.is_empty() and guard < 900:
+        guard += 1
+        var idx := randi() % free.size()
+        var t := free[idx]
+        free.remove_at(idx)
+        if not _far_enough(grid, _tiles_of(spawns), t):
+            continue
+        if t.distance_squared_to(spawn) <= spawn_dist:
+            continue
+        spawns.append({"tile": t,
+            "id": String(pool[randi() % pool.size()]), "elite": false})
+    # элитные чемпионы: на этаже босса 1–2, на остальных 0–1
+    var extra := randi_range(0, 1) if not is_boss_floor \
+        else randi_range(1, 2)
+    for i in range(mini(extra, spawns.size())):
+        var pick := spawns[randi() % spawns.size()]
+        pick["elite"] = true
+    # хранитель сокровищницы: всегда элита, стоит в самой сокровищнице
+    if not is_boss_floor and vault_center.x >= 0 and not spawns.is_empty():
+        var best := Vector2i(-1, -1)
+        var best_d := -1.0
+        for y in range(vault.position.y, vault.end.y):
+            for x in range(vault.position.x, vault.end.x):
+                var t2 := Vector2i(x, y)
+                if not _open_floor(grid, t2):
+                    continue
+                var d := float(t2.distance_squared_to(_room_center(vault)))
+                if d > best_d:
+                    best_d = d
+                    best = t2
+        if best.x >= 0:
+            # если на этом тайле уже кто-то стоит — сдвинуть его некуда,
+            # поэтому дубликат здесь допустим (враги не сталкиваются)
+            var keeper := spawns[randi() % spawns.size()]
+            keeper["tile"] = best
+            keeper["elite"] = true
+    return spawns
+
+## Тайлы всех врагов из списка спавнов (для проверок дистанций).
+static func _tiles_of(spawns: Array[Dictionary]) -> Array[Vector2i]:
+    var out: Array[Vector2i] = []
+    for s in spawns:
+        out.append(s["tile"])
+    return out
+
+## Сундуки этажа (шаг 15): 2 в сокровищнице (этажи 1–3) или в двух углах
+## зала босса (этаж 4), остальные 2–3 — по всем комнатам, вдали от спавна,
+## лестниц, врагов (вплотную) и уже выбранных сундуков.
+static func _pick_chest_tiles(grid: Array[String], rooms: Array[Rect2i],
+        spawn: Vector2i, up: Vector2i, down: Vector2i, boss_tile: Vector2i,
+        vault: Rect2i, vault_center: Vector2i,
+        foe_spawns: Array[Dictionary], is_boss_floor: bool,
+        hall: Rect2i, reserved: Array[Vector2i]) -> Array[Vector2i]:
+    var chest_tiles: Array[Vector2i] = []
+    var taken := _tiles_of(foe_spawns)
+    if not is_boss_floor and vault_center.x >= 0:
+        var vault_floors: Array[Vector2i] = []
+        for y in range(vault.position.y, vault.end.y):
+            for x in range(vault.position.x, vault.end.x):
+                var t := Vector2i(x, y)
+                if _open_floor(grid, t) and _far_enough(grid, taken, t):
+                    vault_floors.append(t)
+        for i in range(2):
+            if vault_floors.is_empty():
+                break
+            var idx := randi() % vault_floors.size()
+            chest_tiles.append(vault_floors[idx])
+            taken.append(vault_floors[idx])
+            vault_floors.remove_at(idx)
+    if is_boss_floor and hall.size.x > 0:
+        var corners: Array[Vector2i] = [
+            Vector2i(hall.position.x + 2, hall.end.y - 3),
+            Vector2i(hall.end.x - 3, hall.position.y + 2)]
+        for t2 in corners:
+            # угол зала — «охраняемый» сундук: главное — не на клетке врага,
+            # реквизита-резерва или уже занятой позиции
+            if not _open_floor(grid, t2) or reserved.has(t2):
+                continue
+            var on_foe := false
+            for ft in _tiles_of(foe_spawns):
+                if t2 == ft:
+                    on_foe = true
+                    break
+            if on_foe or taken.has(t2):
+                continue
+            chest_tiles.append(t2)
+            taken.append(t2)
+    var floors_all: Array[Vector2i] = []
     for y in range(MAP_H):
         for x in range(MAP_W):
-            if String(grid[y][x]) == ".":
-                floors.append(Vector2i(x, y))
-    for i in range(mini(14, floors.size())):
-        var t: Vector2i = floors[randi() % floors.size()]
-        _set_cell(grid, t, "b" if randi() % 2 == 0 else ";")
+            var t3 := Vector2i(x, y)
+            if _open_floor(grid, t3):
+                floors_all.append(t3)
+    var want := randi_range(CHESTS_MIN, CHESTS_MAX)
+    # цель всегда «2 гарантированных + want рассыпанных» = 4–5 сундуков
+    var guard := 0
+    while chest_tiles.size() < want + 2 and not floors_all.is_empty() \
+            and guard < 600:
+        guard += 1
+        var idx2 := randi() % floors_all.size()
+        var t4 := floors_all[idx2]
+        floors_all.remove_at(idx2)
+        if t4 == spawn or t4 == up or t4 == down or t4 == boss_tile:
+            continue
+        if reserved.has(t4):
+            continue
+        if t4.distance_squared_to(spawn) <= 36:
+            continue
+        var on_foe := false
+        for ft in _tiles_of(foe_spawns):
+            if t4.distance_squared_to(ft) <= 4:
+                on_foe = true
+                break
+        if on_foe or not _far_enough(grid, taken, t4):
+            continue
+        chest_tiles.append(t4)
+        taken.append(t4)
+    return chest_tiles
+
+## Факелы: полы вплотную к стенам (свет «лампы на стене»), не на лестницах,
+## сундуках, реквизите, врагах и не друг на друге (минимум 5 тайлов между).
+static func _pick_torch_tiles(grid: Array[String], spawn: Vector2i,
+        up: Vector2i, down: Vector2i, boss_tile: Vector2i,
+        chest_tiles: Array[Vector2i], foe_spawns: Array[Dictionary],
+        prop_tiles: Array[Dictionary]) -> Array[Vector2i]:
+    var torches: Array[Vector2i] = []
+    var walls_near: Array[Vector2i] = []
+    var side_offsets: Array[Vector2i] = [Vector2i(0, -1), Vector2i(0, 1),
+        Vector2i(-1, 0), Vector2i(1, 0)]
+    for y in range(1, MAP_H - 1):
+        for x in range(1, MAP_W - 1):
+            var t := Vector2i(x, y)
+            if not _open_floor(grid, t):
+                continue
+            var near_wall := false
+            for off in side_offsets:
+                var n: Vector2i = t + off
+                if n.x < 0 or n.y < 0 or n.x >= MAP_W or n.y >= MAP_H:
+                    continue
+                if String(grid[n.y][n.x]) == "#":
+                    near_wall = true
+                    break
+            if near_wall:
+                walls_near.append(t)
+    var want := randi_range(TORCHES_MIN, TORCHES_MAX)
+    var guard := 0
+    while torches.size() < want and not walls_near.is_empty() and guard < 800:
+        guard += 1
+        var idx := randi() % walls_near.size()
+        var t2 := walls_near[idx]
+        walls_near.remove_at(idx)
+        if t2 == spawn or t2 == up or t2 == down or t2 == boss_tile:
+            continue
+        if t2.distance_squared_to(spawn) <= 25:
+            continue
+        var busy := false
+        for ft in _tiles_of(foe_spawns):
+            if t2 == ft:
+                busy = true
+                break
+        for pt in prop_tiles:
+            if t2 == (pt["tile"] as Vector2i):
+                busy = true
+                break
+        for ct in chest_tiles:
+            if t2 == ct or t2.distance_squared_to(ct) <= 9:
+                busy = true
+                break
+        if busy:
+            continue
+        var crowded := false
+        for ot in torches:
+            if t2.distance_squared_to(ot) < 25:
+                crowded = true
+                break
+        if crowded:
+            continue
+        torches.append(t2)
+    return torches
+
+## Реквизит этажа: {"tile": Vector2i, "kind": String}. Жаровни и трон зала
+## босса ставятся отдельно (см. _pick_hall_props), здесь — рассыпанный:
+## бочки/ящики/мешки в комнатах, кристаллы в сокровищнице.
+static func _pick_prop_tiles(grid: Array[String], rooms: Array[Rect2i],
+        spawn: Vector2i, up: Vector2i, down: Vector2i, boss_tile: Vector2i,
+        chest_tiles: Array[Vector2i], foe_spawns: Array[Dictionary],
+        floor_num: int, is_boss_floor: bool,
+        hall: Rect2i, vault: Rect2i,
+        reserved: Array[Vector2i]) -> Array[Dictionary]:
+    var props: Array[Dictionary] = []
+    var taken := _tiles_of(foe_spawns)
+    taken.append_array(chest_tiles)
+    taken.append(spawn)
+    taken.append(up)
+    if down.x >= 0:
+        taken.append(down)
+    if boss_tile.x >= 0:
+        taken.append(boss_tile)
+
+    # сокровищница: два кристалла по углам (фиолетовые — на 2-м этаже)
+    if vault.size.x > 0:
+        var crystal := "crystal" if floor_num != 2 else "crystal_violet"
+        var offs: Array[Vector2i] = [Vector2i(2, 1), Vector2i(-2, -2)]
+        for off in offs:
+            var ct: Vector2i = _room_center(vault) + off
+            if _open_floor(grid, ct) and not reserved.has(ct) \
+                    and _far_enough(grid, taken, ct):
+                props.append({"tile": ct, "kind": crystal})
+                taken.append(ct)
+    # рассыпанный реквизит по комнатам (кроме стартовой)
+    var kinds: Array = ["barrel", "crate", "sacks"]
+    if floor_num == 2:
+        kinds = ["crystal_violet", "barrel", "crate"]
+    elif floor_num == 3:
+        kinds = ["sacks", "barrel", "lantern"]
+    var want := randi_range(3, 6)
+    var base := props.size()   # уже стоящие: кристаллы сокровищницы
+    var guard := 0
+    while props.size() < base + want and guard < 400:
+        guard += 1
+        var room := rooms[randi() % rooms.size()]
+        if room == rooms[0]:
+            continue
+        var t2 := Vector2i(randi_range(room.position.x, room.end.x - 1),
+            randi_range(room.position.y, room.end.y - 1))
+        if reserved.has(t2):
+            continue
+        if not _open_floor(grid, t2) or not _far_enough(grid, taken, t2):
+            continue
+        props.append({"tile": t2, "kind": String(kinds[randi() % kinds.size()])})
+        taken.append(t2)
+    return props
 
 static func _room_center(room: Rect2i) -> Vector2i:
     return room.position + room.size / 2
@@ -344,7 +1062,7 @@ static func _set_cell(grid: Array[String], t: Vector2i, symbol: String) -> void:
     var row := grid[t.y]
     grid[t.y] = row.substr(0, t.x) + symbol + row.substr(t.x + 1)
 
-## Слишком близко к уже выбранным тайлам врагов? (чтобы не кучковались)
+## Слишком близко к уже занятым тайлам? (чтобы не кучковались)
 static func _far_enough(_grid: Array[String], taken: Array[Vector2i],
         t: Vector2i) -> bool:
     for other in taken:

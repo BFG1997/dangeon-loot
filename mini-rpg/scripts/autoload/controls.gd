@@ -1,22 +1,34 @@
-## Persistent bindings for the eight gameplay actions. Never modifies ui_*.
+## Persistent bindings for the nine gameplay actions. Never modifies ui_*.
 extends Node
 
 signal bindings_changed
 signal save_state_changed(error: int, pending: bool)
 
-const PROFILE_VERSION := 1
+## Шаг 18: v2 — добавлено девятое действие "special" (второй приём героя,
+## пробел). Профили v1 (8 действий) несовместимы и заменяются дефолтами.
+## Шаг 20: v3 — десятое действие "special2" (третий приём, T); заодно
+## сменились дефолты: удар на F, взаимодействие на E. Профили v2 (9
+## действий) несовместимы и заменяются новыми дефолтами.
+const PROFILE_VERSION := 3
 var last_save_error: int = OK
 var save_pending: bool = false
 var load_diagnostic: String = ""
 
 const ACTIONS: Array[StringName] = [
     &"move_up", &"move_down", &"move_left", &"move_right",
-    &"interact", &"attack", &"cast_spell", &"toggle_inventory",
+    &"interact", &"attack", &"cast_spell", &"special", &"special2",
+    &"toggle_inventory",
 ]
+## Шаг 18: cast_spell — первый приём героя (Q: у мага — магия, у остальных —
+## свой приём), special — второй приём (пробел: у всех классов).
+## Шаг 20: special2 — третий приём (T: выплеск магии/передышка/прыжок/град).
+## Действие "run" (бег на Shift) в ACTIONS не входит: Shift — модификатор,
+## _normalize такие клавиши не принимает, бег не переназначается.
 const ACTION_LABELS := {
     &"move_up": "Вверх", &"move_down": "Вниз", &"move_left": "Влево",
     &"move_right": "Вправо", &"interact": "Взаимодействие", &"attack": "Атака",
-    &"cast_spell": "Магия", &"toggle_inventory": "Инвентарь",
+    &"cast_spell": "Приём Q", &"special": "Приём 2", &"special2": "Приём T",
+    &"toggle_inventory": "Инвентарь",
 }
 
 var _defaults: Dictionary = {}
@@ -298,7 +310,7 @@ func _decode_profile(value: Variant) -> Dictionary:
         return _invalid_profile("Unsupported controls version: %s" % value["version"])
     var raw: Variant = value.get("bindings")
     if not raw is Dictionary or raw.size() != ACTIONS.size():
-        return _invalid_profile("Expected all eight gameplay actions")
+        return _invalid_profile("Expected all %d gameplay actions" % ACTIONS.size())
     for action in raw:
         if not action is String or StringName(action) not in ACTIONS:
             return _invalid_profile("Unknown gameplay action: %s" % action)
@@ -374,13 +386,23 @@ func get_binding_text(action: StringName, primary_only: bool = false) -> String:
             break
     return " / ".join(labels)
 
-func get_hud_hint(has_magic: bool) -> String:
+## Шаг 18: в подсказку добавлены приёмы героя. ability_q/ability_special —
+## названия приёмов текущего класса (пустая строка — строчка не выводится;
+## у мага «магия» уже напечатана по has_magic, его приём Q не дублируется).
+func get_hud_hint(has_magic: bool, ability_q: String = "",
+        ability_special: String = "", ability_t: String = "") -> String:
     var movement: PackedStringArray = []
     for action in [&"move_up", &"move_left", &"move_down", &"move_right"]:
         movement.append(get_binding_text(action, true))
-    var text := "%s / джойстик — идти · %s — говорить / использовать\n%s — удар · %s — сумка" % [
+    var text := "%s / джойстик — идти · %s — говорить / использовать\n%s — удар · %s — сумка · Shift — бег" % [
         " / ".join(movement), get_binding_text(&"interact", true),
         get_binding_text(&"attack", true), get_binding_text(&"toggle_inventory", true)]
     if has_magic:
         text += " · %s — магия" % get_binding_text(&"cast_spell", true)
+    if not ability_q.is_empty():
+        text += " · %s — %s" % [get_binding_text(&"cast_spell", true), ability_q]
+    if not ability_special.is_empty():
+        text += " · %s — %s" % [get_binding_text(&"special", true), ability_special]
+    if not ability_t.is_empty():
+        text += " · %s — %s" % [get_binding_text(&"special2", true), ability_t]
     return text

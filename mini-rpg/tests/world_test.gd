@@ -131,13 +131,35 @@ func _ready() -> void:
     var door_click := InputEventMouseButton.new()
     door_click.button_index = MOUSE_BUTTON_LEFT
     door_click.pressed = true
+    # шаг 16: дверь 2 («Скит Пустоты») заперта шёпотом, пока не пройден данж 1
     world._on_door_input(null, door_click, 0, "dungeon_2")
     await get_tree().process_frame
-    check("запертая дверь отвечает: подземелье недоступно", world._dialogue.visible \
+    check("дверь 2 заперта шёпотом до победы над демоном", world._dialogue.visible \
         and world._dialogue._lines.size() > 0 \
-        and String(world._dialogue._lines[0]).contains("недоступно"))
-    check("с дверью нельзя торговать", not world._dialogue._trade_button.visible)
+        and String(world._dialogue._lines[0]).contains("шёпот"))
+    check("с дверью 2 нельзя торговать", not world._dialogue._trade_button.visible)
     world._dialogue._close()
+    await get_tree().process_frame
+    # дверь 3 (шаг 20): «Глубины Р'льеха» — своя заглушка: заперто сном
+    world._on_door_input(null, door_click, 0, "dungeon_3")
+    await get_tree().process_frame
+    check("дверь 3 заперта сном: сначала пройди Скит Пустоты", world._dialogue.visible \
+        and world._dialogue._lines.size() > 0 \
+        and String(world._dialogue._lines[0]).contains("дверью вода"))
+    check("с запертой дверью нельзя торговать", not world._dialogue._trade_button.visible)
+    world._dialogue._close()
+    await get_tree().process_frame
+    # шаг 16: данж 1 пройден — дверь 2 ведёт в Скит Пустоты (маршрут без диалога;
+    # смену сцены в тесте не запускаем — флаг «уже переходим», как у двери 1)
+    Game.dungeon_floor = 1
+    Game.dungeons_cleared = ["dungeon_1"]
+    world._open_door_dialog("dungeon_2")
+    await get_tree().process_frame
+    check("дверь 2 после победы над демоном — маршрут в скит (без диалога)", \
+        not world._dialogue.visible and Game.current_dungeon == "dungeon_2")
+    Game.dungeon_floor = 0
+    Game.current_dungeon = "dungeon_1"
+    Game.dungeons_cleared = []
     await get_tree().process_frame
     # шаг 13: дверь 1 открыта — маршрут в Подземелье замка. Смену сцены
     # в тесте не запускаем: под флагом «уже переходим» (dungeon_floor > 0)
@@ -335,12 +357,33 @@ func _ready() -> void:
         if ev is InputEventKey and (ev as InputEventKey).physical_keycode == KEY_E:
             e_interact = true
     check("диалог на E", e_interact)
-    check("кнопка УДАР у не-мага", world._attack_button != null \
-        and world._attack_button.text.contains("УДАР"))
+    # шаг 20: удар по умолчанию на F (ЛКМ тоже работает), бег — на Shift
+    var f_attack := false
+    for ev in InputMap.action_get_events("attack"):
+        if ev is InputEventKey and (ev as InputEventKey).physical_keycode == KEY_F:
+            f_attack = true
+    check("удар на F по умолчанию", f_attack)
+    check("действие run есть и на Shift", InputMap.has_action("run") \
+        and (InputMap.action_get_events("run")[0] as InputEventKey).physical_keycode == KEY_SHIFT)
+    # шаг 20: в HUD только МЕНЮ / СОХРАНИТЬ / ЗАГРУЗИТЬ
+    var hud_texts: Array[String] = []
+    for child in world._hud_bar.get_children():
+        if child is Button and child.has_meta("action_button"):
+            hud_texts.append((child as Button).text)
+    check("в HUD четыре кнопки: меню, сумка, сохранить, загрузить",
+        hud_texts == ["МЕНЮ", "СУМКА", "СОХРАНИТЬ", "ЗАГРУЗИТЬ"])
     check("HUD показывает «В руках: Кулаки»", world._hud_weapon.text.contains("Кулаки"))
 
     # --- джойстик ---
     check("VirtualJoystick подключён", world._joystick != null)
+
+    # --- шаг 20: дверь 3 «Глубины Р'льеха» заперта до победы в ските ---
+    world._open_door_dialog("dungeon_3")
+    await get_tree().process_frame
+    check("дверь 3 заперта до победы в Ските Пустоты", world._dialogue.visible \
+        and String(world._dialogue._name_label.text).contains("глубин"))
+    world._dialogue._close()
+    await get_tree().process_frame
 
     # --- шаг 11: компактная консоль и клик-удар ---
     check("консоль UI сжата до 112 px (экран ходьбы вырос)", world.UI_BAR_H == 112.0 \
@@ -364,8 +407,10 @@ func _ready() -> void:
     await get_tree().process_frame
     await get_tree().process_frame
     check("HUD мага: полоса маны есть", world_mage._hud_mana != null)
-    check("HUD мага: кнопка МАГИЯ есть", world_mage._spell_button != null)
-    check("HUD мага: кнопка УДАР тоже есть (маг бьёт рукой)", world_mage._attack_button != null)
+    check("HUD мага: те же четыре кнопки без приёмов (шаг 21)",
+        world_mage._hud_bar.get_children().filter(
+            func(c: Node) -> bool: return c is Button \
+                and c.has_meta("action_button")).size() == 4)
     check("мана мага полная (70)", Game.mana == 70 and Game.max_mana() == 70)
     check("лист анимаций героя — маг", world_mage._hero_sheet_tex.resource_path.contains("mage"))
     check("каст через Game списал ману", Game.cast_spell() \

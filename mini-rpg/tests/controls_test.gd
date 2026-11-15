@@ -1,5 +1,7 @@
 ## Run ONLY with isolated user data (e.g. a temporary XDG_DATA_HOME on Linux):
 ## godot --headless --path . res://tests/controls_test.tscn -- --isolated-controls-test
+## Шаг 20: десять действий (special2/T); донор переноса — "special" (пробел),
+## потому что у "attack" теперь две привязки (ЛКМ + F).
 extends Node
 var failed := 0
 var checks := 0
@@ -33,11 +35,15 @@ func _ready() -> void:
         check(original == Controls.serialize_profile() and changes == count+3, "profile restored; exact signal count")
     check(ui == InputMap.action_get_events("ui_accept").map(func(e): return e.as_text()), "ui actions untouched")
     var original := Controls.serialize_profile()
-    check(Controls.move_replace_binding("cast_spell","attack",Controls.get_bindings("attack")[0],key(KEY_Q)).status == "last_binding", "reject empty donor")
+    check(Controls.move_replace_binding("special","attack",Controls.get_bindings("attack")[0],key(KEY_SPACE)).status == "last_binding", "reject empty donor")
     check(original == Controls.serialize_profile(), "failed transfer atomic")
-    Controls.add_binding("cast_spell",key(KEY_H))
-    check(Controls.move_replace_binding("cast_spell","attack",Controls.get_bindings("attack")[0],key(KEY_Q)).status == "ok", "atomic replacement")
-    check(Controls.get_bindings("attack").size()==1 and Controls.get_binding_text("attack")=="Q", "replacement does not append")
+    Controls.add_binding("special",key(KEY_J))
+    var victim: InputEvent = Controls.get_bindings("attack")[0]
+    check(Controls.move_replace_binding("special","attack",victim,key(KEY_SPACE)).status == "ok", "atomic replacement")
+    check(Controls.get_bindings("attack").size()==2 \
+        and Controls._index(Controls.get_bindings("attack"), key(KEY_SPACE)) >= 0 \
+        and Controls._index(Controls.get_bindings("attack"), victim) < 0,
+        "replacement does not append")
     Controls.reset_defaults()
     var editor := preload("res://scenes/controls/controls_editor.tscn").instantiate()
     add_child(editor)

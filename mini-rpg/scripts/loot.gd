@@ -1,4 +1,9 @@
 ## Лут: качество добычи и таблицы предметов для данжей (шаг 14 — сундуки).
+## Шаг 19: оружий вдвое больше — новые клинки в пулы сундуков по глубине
+## и в эпический пул босса (боёк молота, сфера бездны, лунный чакрам).
+## Шаг 22: экипировки ВТРОЕ больше — вся новая сталь/магия/броня/одеяния
+## разложены по пулам глубины, эпический пул пополнен, у врагов изредка
+## падает оружие или броня (foe_gear_drop).
 class_name Loot
 extends RefCounted
 
@@ -46,24 +51,35 @@ const CHEST_QUALITY_TABLES: Array[Dictionary] = [
     {"id": "violet", "weight": 10},
 ]
 
-## Пулы предметов по глубине этажа (1–3 «early», 4–7 «mid», 8–10 «late»).
-## Оружие: обычная сталь и магическое — у мага залп на Q. Зелья: у «late»
-## изредка попадается фиолетовый эликсир кометы. Все составы — ЗАГЛУШКИ.
+## Пулы предметов по глубине этажа (шаг 15 — четыре этажа:
+## 1 «early», 2–3 «mid», 4 «late»). Оружие: обычная сталь и магическое —
+## у мага залп на Q. Зелья: у «late» изредка попадается фиолетовый
+## эликсир кометы. Все составы — ЗАГЛУШКИ.
+## Шаг 22: пулы втрое богаче — вся новая экипировка падает из сундуков.
 const CHEST_POOLS: Dictionary = {
     "weapon": {
-        "early": ["sword", "wand_lightning"],
-        "mid": ["wand_lightning", "greatsword", "blade_frost"],
-        "late": ["greatsword", "blade_frost", "scepter_comet", "morgenstern"],
+        "early": ["rusty_dagger", "sword", "wand_lightning", "bone_chopper",
+            "guard_spear", "spark_wand"],
+        "mid": ["wand_lightning", "greatsword", "blade_frost", "axe_war",
+            "staff_embers", "great_axe", "broadsword", "storm_eye",
+            "frost_needles", "flame_rod", "glaive"],
+        "late": ["greatsword", "blade_frost", "scepter_comet", "morgenstern",
+            "warhammer", "orb_abyss", "chakram_moon", "flail", "claymore",
+            "espadon", "guisarme", "marsh_orb", "flame_blade",
+            "thunder_scepter", "mist_crystal", "executioner_axe"],
     },
     "armor": {
-        "early": ["armor_leather"],
-        "mid": ["armor_leather", "armor_chain"],
-        "late": ["armor_chain", "armor_plate"],
+        "early": ["armor_leather", "quilted_jacket"],
+        "mid": ["armor_leather", "armor_chain", "leather_cuirass",
+            "scale_armor"],
+        "late": ["armor_chain", "armor_plate", "brigandine", "bachterez",
+            "dragon_scale"],
     },
     "robe": {
-        "early": ["robe_faded"],
-        "mid": ["robe_faded", "robe_stars"],
-        "late": ["robe_stars", "robe_void"],
+        "early": ["robe_faded", "robe_apprentice"],
+        "mid": ["robe_faded", "robe_stars", "robe_runes", "robe_mist"],
+        "late": ["robe_stars", "robe_void", "robe_lunar", "robe_comet",
+            "robe_dawn"],
     },
     "potion": {
         "early": ["hp_potion_small", "mana_potion_small"],
@@ -79,7 +95,7 @@ const CHEST_POOLS: Dictionary = {
 
 ## Золото из сундука: база растёт с глубиной этажа (ЗАГЛУШКА).
 static func chest_gold(floor_num: int) -> int:
-    return 8 + floor_num * 4 + randi_range(0, 12)
+    return 10 + floor_num * 6 + randi_range(0, 14)
 
 ## Добыча из сундука (шаг 14). Возвращает {"gold": int} либо
 ## {"item_id": String, "quality": String}. Сундук всегда не пуст.
@@ -96,13 +112,13 @@ static func chest_loot(floor_num: int) -> Dictionary:
         quality = String(_weighted_pick(CHEST_QUALITY_TABLES).get("id", "gray"))
     return {"item_id": item_id, "quality": quality}
 
-## Пул «early» / «mid» / «late» для этажа: 1–3 — ранний, 4–7 — средний,
-## 8–10 — поздний.
+## Пул «early» / «mid» / «late» для этажа: 1 — ранний, 2–3 — средний,
+## 4 (этаж босса) — поздний.
 static func _tier_pool(pools: Dictionary, floor_num: int) -> Array:
     var key := "early"
-    if floor_num >= 8:
+    if floor_num >= 4:
         key = "late"
-    elif floor_num >= 4:
+    elif floor_num >= 2:
         key = "mid"
     return pools.get(key, pools.get("early", []))
 
@@ -133,10 +149,38 @@ static func _weighted_pick(table: Array) -> Dictionary:
 const EPIC_QUALITY := "gold"
 const EPIC_WEAPONS: Array[String] = [
     "greatsword", "morgenstern", "wand_lightning", "blade_frost",
-    "scepter_comet",
+    "scepter_comet", "warhammer", "orb_abyss", "chakram_moon",
+    "espadon", "guisarme", "executioner_axe", "dragon_fang",
+    "royal_greatsword", "thunder_scepter", "mist_crystal",
+    "starfall_staff", "sun_scepter", "polaris_wand",
 ]
 
 ## Эпическая награда босса: {"item_id": ..., "quality": "gold"}.
 static func epic_weapon_loot() -> Dictionary:
     return {"item_id": EPIC_WEAPONS[randi() % EPIC_WEAPONS.size()],
         "quality": EPIC_QUALITY}
+
+# --------------------------------------------- добыча с врагов (шаг 22)
+
+## Шанс (в процентах), что враг уронит экипировку: оружие или броню.
+const FOE_GEAR_CHANCE := 12
+
+## Качество дропа с врагов: скромнее сундуков — серое чаще,
+## золотое — большая редкость.
+const FOE_GEAR_QUALITY: Array[Dictionary] = [
+    {"id": "gray", "weight": 60},
+    {"id": "green", "weight": 30},
+    {"id": "gold", "weight": 10},
+]
+
+## Дроп экипировки с врага (шаг 22): случайное оружие или броня из
+## пула глубины этажа, качество — по FOE_GEAR_QUALITY. Пустой пул —
+## отступаем к золоту (не бывает: сталь есть на всех глубинах).
+static func foe_gear_drop(floor_num: int) -> Dictionary:
+    var category := "weapon" if randi() % 100 < 60 else "armor"
+    var pools: Dictionary = CHEST_POOLS.get(category, {})
+    var item_id := _pick_id(_tier_pool(pools, floor_num))
+    if item_id.is_empty():
+        return {"gold": chest_gold(floor_num)}
+    var quality := String(_weighted_pick(FOE_GEAR_QUALITY).get("id", "gray"))
+    return {"item_id": item_id, "quality": quality}

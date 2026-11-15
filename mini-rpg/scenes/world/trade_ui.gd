@@ -3,6 +3,11 @@
 ## (кнопка «ТОРГОВАТЬ», см. dialogue_ui.gd): TradeUI.open(trader).
 ## trader = {"name", "role", "goods": ["item_id", ...]}.
 ## Запас у торговцев бесконечный; непродажные уники помечены в ItemDB.
+## Шаг 22: прилавок лавки пополняется тем, что герой ей продал
+## (Game.merchant_stock, смотря что это и какой торговец).
+## Шаг 23 (фикс лавки демона): проданное ДЕМОНУ оседает в ЕГО лавке
+## (Game.demon_stock) — демон перепродаёт купленное со своей скидкой,
+## прилавки живых торговцев при продаже демону не трогаются.
 ## Шаг 8: лавка демона — trader содержит "demon": true. Ассортимент —
 ## товары павших торговцев, цены со скидкой Game.demon_discount_pct()
 ## (-10% за каждого убитого NPC): покупка через Game.buy_from_demon().
@@ -175,12 +180,19 @@ func _refresh() -> void:
         if _is_demon:
             _hint_label.text = "Лавка демона: скидка %d%% — минус 10%% за каждого убитого жителя. Товары павших торговцев. Запас бесконечен." % Game.demon_discount_pct()
         else:
-            _hint_label.text = "Запас лавки бесконечен. Продажа своих вещей — за половину цены."
+            _hint_label.text = "Запас лавки бесконечен, а прилавок растёт: продал торговцу оружие, броню или еду — он теперь сам это продаёт. Продажа своих вещей — за половину цены."
         var goods: Array = _trader.get("goods", [])
         if goods.is_empty():
             _rows.add_child(_make_empty_label("У этого NPC нечего покупать."))
         for item_id in goods:
             _rows.add_child(_make_buy_row(String(item_id)))
+    elif _is_demon:
+        _hint_label.text = "Продай демону оружие, броню или еду — он выставит это в своей лавке со скидкой. Уники торговцы не берут."
+        if Game.inventory.is_empty():
+            _rows.add_child(_make_empty_label("Сумка пуста."))
+        for i in range(Game.inventory.size()):
+            _rows.add_child(_make_sell_row(i))
+        return
     else:
         _hint_label.text = "Продать можно вещи с меткой цены. Уники торговцы не берут."
         if Game.inventory.is_empty():
@@ -311,7 +323,9 @@ func _on_buy_pressed(item_id: String) -> void:
     _refresh()
 
 func _on_sell_pressed(index: int) -> void:
-    if not Game.sell_item(index):
+    # Шаг 23: в лавке демона ПРОДАЖА кладёт вещь на ЕГО прилавок
+    # (Game.demon_stock), а не живому торговцу профиля.
+    if not Game.sell_item(index, _is_demon):
         _hint_label.text = "Эту вещь продать не получится."
         return
     _refresh()

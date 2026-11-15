@@ -13,6 +13,21 @@
 ## живёт только в текущей сессии: в сейв не пишется, при новой игре
 ## и загрузке слота обнуляется — мёртвые NPC не воскресают в этой сессии,
 ## а остальные NPC помнят убийство (реплики и отказ торговать — в world.gd).
+## Шаг 18: способности героев — по два приёма у каждого класса: Q и
+## пробел (таблица ABILITIES ниже); барьер мага и щит воина дают
+## неуязвимость (hero_immune), щит ослабляет удары (guard_active).
+## Шаг 19 (опыт и уровни, звук, добыча): у героя есть level/xp —
+## примитивно, без прокачки, как задал автор: урон и максимум ХП
+## удваиваются с каждым уровнем (hero_level_mult), уровень лечит героя.
+## Порог опыта — XP_BASE * level * level (см. add_xp). Сейв v7: в него
+## добавлены level и xp (старые сейвы мигрируют: уровень 1, опыта 0).
+## Шаг 20 (полировка): кулдауны приёмов снижены, звук мягче, в HUD
+## остались только МЕНЮ/СОХРАНИТЬ/ЗАГРУЗИТЬ, бег на Shift, и у каждого
+## класса ТРЕТИЙ приём на T (слот "t" в ABILITIES): маг тратит всю ману
+## и бьёт всех врагов карты на 20×уровень (damage_per_level), бомж
+## полностью лечится, варвар прыгает на врага (убийство не-босса, боссу
+## boss_damage + урон оружия), рыцарь зовёт град мечей (урон актуального
+## удара за каждое попадание). Уровень по-прежнему полностью лечит героя.
 ## Шаг 12 (боевая система: экипировка и ярость демона):
 ## - второй слот экипировки — броня/одеяние (equipped_armor_id): броня даёт
 ##   +hp_bonus к максимуму ХП (носят все), одеяния — +мана и немного ХП
@@ -45,6 +60,9 @@ signal armor_changed(armor_id: String)
 signal npc_killed(npc_id: String)
 signal demon_enraged_changed
 signal npcs_revived
+## Шаг 19: опыт и уровни героя.
+signal xp_changed(xp_value: int, xp_needed: int)
+signal level_up(new_level: int)
 
 const START_GOLD := 0
 const SLOT_COUNT := 3
@@ -119,6 +137,139 @@ const SPELL := {
     "regen_per_sec": 2,
 }
 
+## ------------------------------------------------ уровни и опыт (шаг 19)
+## Примитивная система (задано автором; прокачка — в будущем): за победу
+## дают опыт, при переполнении порога уровень растёт. Пока просто:
+## урон и максимум ХП удваиваются за каждый уровень (hero_level_mult),
+## уровень лечит героя. XP_BASE — опыт за подъём с 1-го на 2-й уровень;
+## дальше порог растёт по квадрату уровня (45/180/405/720...), чтобы
+## уровни шли примерно по этажу данжа, а не по каждому врагу.
+const XP_BASE := 45
+## Опыт за демона у края мира (мир): он «враг», а не житель.
+const DEMON_XP := 120
+
+var level: int = 1                  # текущий уровень героя (сейв v7)
+var xp: int = 0                     # накопленный опыт к следующему уровню
+
+## Сколько опыта нужно от текущего уровня до следующего.
+func xp_needed() -> int:
+    return XP_BASE * level * level
+
+## Множитель силы героя: x1 на 1-м уровне и x2 за каждый уровень.
+func hero_level_mult() -> float:
+    return pow(2.0, float(level - 1))
+
+## Добавить опыт за победу. При переполнении порога — повышение уровня
+## (может случиться несколько раз за разом): урон и потолок ХП растут,
+## герой лечится до полного здоровья, HUD и сцены получают level_up.
+func add_xp(amount: int) -> void:
+    if amount <= 0:
+        return
+    xp += amount
+    while xp >= xp_needed():
+        xp -= xp_needed()
+        level += 1
+        hp = max_hp()               # уровень лечит героя
+        mana = mini(mana, max_mana())
+        level_up.emit(level)
+        hp_changed.emit(hp, max_hp())
+    xp_changed.emit(xp, xp_needed())
+    Saves.request_save()
+
+## Шаг 18: способности героев. У каждого класса ДВА приёма (а с шага 20 —
+## ТРИ, см. слот "t" ниже):
+##   q — клавиша Q (действие "cast_spell"): у мага это прежняя магия
+##       (Магическая стрела/залп, тратит ману), у остальных — свой приём
+##       с кулдауном cd (сек);
+##   special — ПРОБЕЛ (действие "special"): у мага «Барьер» (держится,
+##       тратит ману за секунду), у остальных — приём с кулдауном.
+## kind задаёт исполнение в сценах (world.gd/dungeon.gd):
+##   spell       — магия мага (общий код шагов 6/12);
+##   whirl       — вихрь: урон оружием всем врагам вокруг (radius, px);
+##   axe         — метательный топор: снаряд (damage/speed/range_px);
+##   dust        — горсть пыли: враги вокруг ослепляют на blind_sec;
+##   hold_shield — щит воина: держится до max_hold сек, урон не проходит,
+##                 ходьба speed_mult, удары damage_mult и strike_cd_mult;
+##   gas         — гнилой газ: облако на radius (3 клетки), ticks тиков
+##                 по tick_damage раз в tick_interval сек (первый сразу);
+##   hold_barrier— барьер мага: держится до max_hold сек (макс), мана
+##                 mana_per_sec за секунду, урон не проходит, бить нельзя.
+##                 (шаг 22: приём варвара «Хватка и бросок» удалён по просьбе
+##                 автора — на пробеле теперь «Смертельный прыжок»)
+##   titan_rage  — «Гнев титана» варвара (шаг 22): duration секунд герой
+##                 огромен (scale), урон не проходит, а удары и приёмы
+##                 бьют в damage_mult раз сильнее; на боссов действует.
+## В мире способности действуют только на демона (мирная зона; топор
+## летит по дуге полёта и может задеть любого NPC — как стрела магии).
+## Урон топора/броска/газа задан автором шага 18; кулдауны и радиусы
+## подобраны «не скучными» и легко правятся здесь, в одной таблице.
+## Шаг 20: кулдауны снижены по просьбе автора (вихрь 3.5, щит 6, топор 3,
+## бросок 5, пыль 4.5, газ 5); добавлен третий приём "t" — клавиша T.
+## Слоты приёмов: "q" (Q), "special" (пробел), "t" (T). kind приёмов "t":
+##   mana_burst  — вся мана в волну: 20 × уровень всем врагам карты;
+##   second_wind — мгновенное полное лечение;
+##   death_leap  — прыжок на врага: не-босс умирает, боссу boss_damage
+##                 плюс урон актуального удара; полёт с анимацией;
+##   sword_rain  — град мечей вокруг героя: swords клинков, каждое
+##                 попадание в hit_radius наносит Game.strike_damage().
+const ABILITIES := {
+    "warrior": {
+        "q": {"id": "whirl", "title": "Вихрь клинка", "btn": "ВИХРЬ",
+            "hint": "Вихрь клинка", "kind": "whirl",
+            "cd": 2.0, "radius": 44.0},
+        "special": {"id": "shield", "title": "Оборона щитом", "btn": "ЩИТ",
+            "hint": "Оборона щитом", "kind": "hold_shield",
+            "cd": 3.0, "max_hold": 4.0, "speed_mult": 0.5,
+            "damage_mult": 0.5, "strike_cd_mult": 2.0},
+        # Шаг 20: третий приём (T) — град мечей вокруг героя.
+        "t": {"id": "sword_rain", "title": "Град мечей", "btn": "ГРАД",
+            "hint": "Град мечей", "kind": "sword_rain",
+            "cd": 18.0, "radius": 110.0, "swords": 12,
+            "hit_radius": 20.0},
+    },
+    "barbarian": {
+        "q": {"id": "axe", "title": "Метательный топор", "btn": "ТОПОР",
+            "hint": "Метательный топор", "kind": "axe",
+            "cd": 1.5, "damage": 100, "speed": 260.0, "range_px": 140.0},
+        # Шаг 22: прыжок переехал с T на пробел, «Хватка и бросок» удалена;
+        # кулдаун снижен (было 60 — минута, заданная автором шага 20).
+        "special": {"id": "death_leap", "title": "Смертельный прыжок",
+            "btn": "ПРЫЖОК", "hint": "Смертельный прыжок",
+            "kind": "death_leap",
+            "cd": 15.0, "boss_damage": 200, "leap_range": 140.0},
+        # Шаг 22: новая ульта на T — «Гнев титана»: 4 секунды варвар огромен,
+        # урон по нему не проходит, а его удары и приёмы бьют в 4 раза сильнее.
+        "t": {"id": "titan_rage", "title": "Гнев титана",
+            "btn": "ГНЕВ", "hint": "Гнев титана", "kind": "titan_rage",
+            "cd": 45.0, "duration": 4.0, "damage_mult": 4.0,
+            "scale": 1.55},
+    },
+    "bum": {
+        "q": {"id": "dust", "title": "Горсть пыли", "btn": "ПЫЛЬ",
+            "hint": "Горсть пыли", "kind": "dust",
+            "cd": 2.5, "blind_sec": 2.0, "radius": 110.0},
+        "special": {"id": "gas", "title": "Гнилой газ", "btn": "ГАЗ",
+            "hint": "Гнилой газ", "kind": "gas",
+            "cd": 3.0, "radius": 48.0, "tick_damage": 15,
+            "ticks": 3, "tick_interval": 1.0},
+        # Шаг 20: третий приём (T) — полное лечение (минута, задал автор).
+        "t": {"id": "second_wind", "title": "Передышка", "btn": "ОТДЫХ",
+            "hint": "Передышка", "kind": "second_wind", "cd": 25.0},
+    },
+    "mage": {
+        "q": {"id": "spell", "title": "Магия", "btn": "МАГИЯ",
+            "hint": "", "kind": "spell"},
+        "special": {"id": "barrier", "title": "Барьер", "btn": "БАРЬЕР",
+            "hint": "Барьер", "kind": "hold_barrier",
+            "mana_per_sec": 7, "max_hold": 5.0},
+        # Шаг 20: третий приём (T) — вся мана в волну на 20 урона за уровень
+        # по ВСЕМ противникам на карте (задал автор; боссам тоже).
+        "t": {"id": "mana_burst", "title": "Выплеск магии", "btn": "ВЫПЛЕСК",
+            "hint": "Выплеск магии", "kind": "mana_burst",
+            "cd": 14.0, "damage_per_level": 20},
+    },
+}
+
 var gold: int = START_GOLD
 var inventory: Array = []          # [{"quality": "...", "title": "..."} или {"item_id": "..."}]
 var dungeons_cleared: Array = []   # id пройденных данжей: ["forest_cave", ...]
@@ -149,6 +300,48 @@ var demon_defeated: bool = false
 ## Шаг 13: текущий этаж данжа 1 (1..10), 0 — герой не в подземелье.
 ## Только сессия: в сейв не пишется, при выходе/смерти обнуляется.
 var dungeon_floor: int = 0
+## Какое подземелье открыто (шаг 16): "dungeon_1" — Подземелье замка,
+## "dungeon_2" — Скит Пустоты. Состояние сессии, в сейв не пишется.
+var current_dungeon: String = "dungeon_1"
+## Шаг 18: приёмы героя (состояние сессии, в сейв не пишется).
+## Шаг 22: «Гнев титана» варвара — большая форма. Пока titan_until
+## не истёк, урон герою не проходит (damage_hp), а удары и приёмы бьют
+## в titan_mult раз сильнее (strike_damage, топор в сценах). Время —
+## монотонные миллисекунды: форма гаснет сама, сцены лишь следят за
+## визуалом (рост спрайта) через titan_active().
+var titan_until: int = 0
+var titan_mult: float = 1.0
+
+## Войти в форму титана на duration секунд с множителем урона mult.
+func start_titan_rage(duration: float, mult: float) -> void:
+    titan_until = Time.get_ticks_msec() + int(round(duration * 1000.0))
+    titan_mult = mult if mult > 1.0 else 1.0
+
+## Активна ли форма титана прямо сейчас.
+func titan_active() -> bool:
+    return titan_until > Time.get_ticks_msec()
+
+## Множитель урона героя (1.0 вне формы).
+func titan_damage_mult() -> float:
+    return titan_mult if titan_active() else 1.0
+
+## hero_immune — барьер мага или щит воина: урон герою не проходит
+## (проверка в damage_hp). guard_active — воин держит щит: удары вдвое
+## слабее (strike_damage), шаг медленный и замах вдвое дольше (сцены).
+var hero_immune := false
+var guard_active := false
+
+## Приём героя по слоту ("q" или "special"): копия записи из ABILITIES
+## для текущего класса. Пустой словарь — приёма нет (не бывает: у всех
+## четырёх классов оба приёма заданы).
+func ability_info(slot: String) -> Dictionary:
+    var klass: Dictionary = ABILITIES.get(hero_id, {})
+    var info := (klass.get(slot, {}) as Dictionary).duplicate(true)
+    # Шаг 19: урон приёмов растёт с уровнем героя (топор, тик газа, бросок).
+    for key in ["damage", "tick_damage", "splash_damage"]:
+        if info.has(key):
+            info[key] = maxi(1, int(round(float(info[key]) * hero_level_mult())))
+    return info
 ## Текущий слот сейва: 0 — игра не идёт (просто смотрим меню).
 var current_slot: int = 0
 ## Глобальные настройки игрока (хранятся в meta.json).
@@ -195,7 +388,10 @@ func hero_max_mana(hero: String) -> int:
     return int(HEROES.get(hero, {}).get("mana", 0))
 
 func max_hp() -> int:
-    return hero_max_hp(hero_id) + ItemDB.hp_bonus(equipped_armor_id)
+    # Шаг 19: базовые ХП героя удваиваются с каждым уровнем
+    # (бонус брони остаётся плоским прибавкой).
+    var base := int(round(float(hero_max_hp(hero_id)) * hero_level_mult()))
+    return base + ItemDB.hp_bonus(equipped_armor_id)
 
 func max_mana() -> int:
     return hero_max_mana(hero_id) + ItemDB.mana_bonus(equipped_armor_id)
@@ -265,8 +461,11 @@ func heal_hp(amount: int) -> int:
     return hp - before
 
 ## Урон по герою (бои появятся позже; сейчас используется тестами).
+## Шаг 18: пока hero_immune (барьер мага, щит воина) урон поглощается.
+## Шаг 22: в форме титана урон тоже не проходит (но бить можно —
+## в отличие от барьера, внимания приёмы не отнимают).
 func damage_hp(amount: int) -> void:
-    if amount <= 0:
+    if amount <= 0 or hero_immune or titan_active():
         return
     hp = maxi(0, hp - amount)
     hp_changed.emit(hp, max_hp())
@@ -322,7 +521,8 @@ func spell_info() -> Dictionary:
             info["id"] = equipped_weapon_id + "_volley"
             info["title"] = String(v.get("title", "Залп"))
             info["cost"] = int(v.get("mana", SPELL["cost"]))
-            info["damage"] = int(v.get("damage", SPELL["damage"]))
+            info["damage"] = maxi(1, int(round(float(v.get("damage", SPELL["damage"])) \
+                * hero_level_mult())))
             info["speed"] = float(v.get("speed", SPELL["speed"]))
             info["range_px"] = float(v.get("range_px", SPELL["range_px"]))
             info["cooldown"] = float(v.get("cooldown", SPELL["cooldown"]))
@@ -332,7 +532,10 @@ func spell_info() -> Dictionary:
             info["size"] = float(v.get("size", 1.0))
             info["weapon_id"] = equipped_weapon_id
             return info
-    return SPELL.duplicate()
+    var arrow := SPELL.duplicate()
+    # Шаг 19: урон магии тоже растёт с уровнем мага.
+    arrow["damage"] = maxi(1, int(round(float(arrow["damage"]) * hero_level_mult())))
+    return arrow
 
 ## Подсказка не-магу, нажавшему Q (шаг 12): у каждого класса свой отказ.
 func non_mage_spell_hint() -> String:
@@ -442,15 +645,31 @@ func has_armor() -> bool:
 ## маг х0.5, варвар х2. Магическое оружие: маг — полная сила,
 ## воин/бомж — урон + магический эффект (+MAGIC_SURGE_FACTOR).
 func strike_damage() -> int:
+    var dmg := _strike_damage_base()
+    # Шаг 18: воин держит щит — машет оружием вдвое слабее.
+    if guard_active:
+        dmg = maxi(1, int(round(float(dmg) * 0.5)))
+    # Шаг 22: гнев титана — бьём в 4 раза сильнее.
+    dmg = maxi(1, int(round(float(dmg) * titan_damage_mult())))
+    return dmg
+
+## Базовый урон удара без учёта щита (шаги 7/12).
+func _strike_damage_base() -> int:
+    var dmg := 0
     if not has_weapon():
-        return HAND_DAMAGE
-    var base := ItemDB.damage(equipped_weapon_id)
-    if ItemDB.is_magic(equipped_weapon_id):
-        if is_mage():
-            return base
-        return base + maxi(1, int(round(float(base) * MAGIC_SURGE_FACTOR)))
-    var mult := float(CLASS_STRIKE_MULT.get(hero_id, 1.0))
-    return maxi(1, int(round(float(base) * mult)))
+        dmg = HAND_DAMAGE
+    else:
+        var base := ItemDB.damage(equipped_weapon_id)
+        if ItemDB.is_magic(equipped_weapon_id):
+            if is_mage():
+                dmg = base
+            else:
+                dmg = base + maxi(1, int(round(float(base) * MAGIC_SURGE_FACTOR)))
+        else:
+            var mult := float(CLASS_STRIKE_MULT.get(hero_id, 1.0))
+            dmg = maxi(1, int(round(float(base) * mult)))
+    # Шаг 19: урон удара удваивается с каждым уровнем героя.
+    return maxi(1, int(round(float(dmg) * hero_level_mult())))
 
 ## Шаг 12: магический эффект в действии? (не-маг бьёт магическим оружием:
 ## урон с прибавкой, вспышка цвета оружия — визуал в world.gd)
@@ -472,6 +691,13 @@ func strike_title() -> String:
     if has_weapon():
         return ItemDB.title(equipped_weapon_id)
     return HAND_TITLE
+
+## Шаг 19: путь к иконке оружия в руках (для видимого взмаха в сценах).
+## Пустая строка — герой бьёт кулаками, взмах рисуется без оружия.
+func strike_weapon_icon() -> String:
+    if has_weapon():
+        return ItemDB.icon(equipped_weapon_id)
+    return ""
 
 # ------------------------------------------------------ смерть NPC (шаг 7)
 
@@ -549,6 +775,7 @@ func defeat_demon_permanently() -> void:
     demon_hits = 0
     demon_enraged = false
     dead_npcs.clear()
+    demon_stock.clear()   # шаг 23: проданное демону умирает вместе с ним
     demon_enraged_changed.emit()
     npcs_revived.emit()
     Saves.request_save()
@@ -566,6 +793,8 @@ func npc_def(npc_id: String) -> Dictionary:
 
 ## Ассортимент демона (шаг 8): товары убитых торговцев — в порядке убийств,
 ## без повторов. Убитый не-торговец (Лира) товаров не приносит.
+## Шаг 22: к базовому товару добирается и то, что герой успел продать
+## торговцу при жизни (merchant_stock) — лавка демона богаче.
 func demon_goods() -> Array[String]:
     var goods: Array[String] = []
     for npc_id in dead_npcs:
@@ -573,6 +802,15 @@ func demon_goods() -> Array[String]:
             var id := String(item_id)
             if id not in goods and ItemDB.price(id) > 0:
                 goods.append(id)
+        for item_id in merchant_stock.get(String(npc_id), []):
+            var id2 := String(item_id)
+            if id2 not in goods and ItemDB.price(id2) > 0:
+                goods.append(id2)
+    # Шаг 23: плюс всё, что герой продал демону лично (demon_stock).
+    for item_id in demon_stock:
+        var id3 := String(item_id)
+        if id3 not in goods and ItemDB.price(id3) > 0:
+            goods.append(id3)
     return goods
 
 ## Цена демона: обычная цена лавки со скидкой, минимум 1 золото.
@@ -621,12 +859,57 @@ func buy_item(item_id: String) -> bool:
     Saves.request_save()
     return true
 
+## Торговцы и их профиль (шаг 22): что торговец готов выставлять на
+## прилавок. Продал оружие — Вирас теперь сам его продаёт; магическое
+## оружие и одеяния уходят к Зорану, еда — к Гуре, питьё — к Глоту,
+## зелья — к Злусу. «Смотря что это и какой торговец».
+const MERCHANT_BY_KIND: Dictionary = {
+    "food": "gura", "drink": "glot", "potion": "zlus",
+    "weapon": "viras", "armor": "viras", "robe": "zoran",
+}
+
+## Склад из продаж (шаг 22): merchant_id -> список item_id, которые
+## герой продал этому профилю торговцев. Пишется в сейв v7: лавка
+## помнит прилавок и после перезапуска игры.
+var merchant_stock: Dictionary = {}
+
+## Шаг 23 (фикс лавки демона): то, что герой продал САМОМУ ДЕМОНУ во
+## вкладке ПРОДАЖА его лавки. Раньше продажа демону уходила в прилавок
+## живого торговца профиля (меч — к Зорану и т.п.), а демон купленное
+## не перепродавал. Теперь купленное оседает в лавке демона (demon_stock)
+## и попадает в demon_goods() со скидкой. Пишется в сейв v7 рядом с
+## merchant_stock; лавка демона умирает вместе с ним.
+var demon_stock: Array = []
+
+## Какой торговец продает предмет такого сорта ("" — никакой).
+func merchant_for_item(item_id: String) -> String:
+    var t := String(ItemDB.get_item(item_id).get("type", ""))
+    if t == "weapon" and ItemDB.is_magic(item_id):
+        return "zoran"   # магическое оружие — профиль Зорана
+    return String(MERCHANT_BY_KIND.get(t, ""))
+
+## Полный прилавок торговца: базовые товары + то, что ему продали.
+func merchant_goods(npc_id: String) -> Array[String]:
+    var goods: Array[String] = []
+    for item_id in npc_def(npc_id).get("goods", []):
+        var id := String(item_id)
+        if id not in goods and ItemDB.price(id) > 0:
+            goods.append(id)
+    for item_id in merchant_stock.get(npc_id, []):
+        var id := String(item_id)
+        if id not in goods and ItemDB.price(id) > 0:
+            goods.append(id)
+    return goods
+
 ## Продать предмет из сумки торговцу за половину цены (ItemDB.sell_price).
 ## index — позиция в Game.inventory. Безымянная добыча без item_id и
 ## фиолетовые уники (price < 0) не продаются. Если продали оружие,
 ## бывшее в руках — оно снимается (шаг 7); если продали надетую броню —
-## она снимается (шаг 12).
-func sell_item(index: int) -> bool:
+## она снимается (шаг 12). Шаг 22: проданный предмет попадает на прилавок
+## торговца того профиля (merchant_for_item) — тот сможет его продать.
+## Шаг 23: to_demon=true — вещь продана САМОМУ ДЕМОНУ: оседает в его
+## лавке (demon_stock), прилавки живых торговцев не трогаются.
+func sell_item(index: int, to_demon: bool = false) -> bool:
     if index < 0 or index >= inventory.size():
         return false
     var item: Dictionary = inventory[index]
@@ -642,6 +925,18 @@ func sell_item(index: int) -> bool:
         equipped_changed.emit("")
     if equipped_armor_id == item_id and not _has_item(equipped_armor_id):
         unequip_armor()
+    if to_demon:
+        # Шаг 23: продано демону — вещь остаётся у НЕГО, а не телепортируется
+        # в прилавок живого торговца профиля.
+        if item_id not in demon_stock:
+            demon_stock.append(item_id)
+    else:
+        var merchant := merchant_for_item(item_id)
+        if merchant != "":
+            var stock: Array = merchant_stock.get(merchant, [])
+            if item_id not in stock:
+                stock.append(item_id)
+            merchant_stock[merchant] = stock
     inventory_changed.emit()
     add_gold(earned)
     return true
@@ -679,6 +974,13 @@ func reset_progress() -> void:
     demon_seen = false
     demon_defeated = false
     dungeon_floor = 0
+    current_dungeon = "dungeon_1"
+    hero_immune = false
+    guard_active = false
+    merchant_stock = {}
+    demon_stock = []
+    level = 1
+    xp = 0
     current_slot = 0
     meta["last_slot"] = 0
     meta["pending_gold"] = 0
@@ -703,6 +1005,9 @@ func pick_new_slot() -> int:
 ## Хп/мана ставятся на максимум героя (у мага: 30 хп, 70 маны).
 ## Оружие, броня и убитые NPC сбрасываются (шаги 7/12); демон забывает удары
 ## и возвращается (demon_defeated — только для текущего прохождения).
+## Шаг 22, фикс «хп больше полоски»: уровень сбрасывается ДО расчёта
+## хп/маны — раньше потолок считался по уровню прошлого забега, и у героя
+## оставалось «лишнее» ХП, которого не показывала полоса HUD.
 func new_run(slot: int, hero: String) -> void:
     gold = START_GOLD
     inventory = []
@@ -712,6 +1017,8 @@ func new_run(slot: int, hero: String) -> void:
     gold = hero_start_gold(hero_id)
     equipped_weapon_id = ""
     equipped_armor_id = ""
+    level = 1
+    xp = 0
     hp = max_hp()
     mana = max_mana()
     dead_npcs = []
@@ -720,6 +1027,13 @@ func new_run(slot: int, hero: String) -> void:
     demon_seen = false
     demon_defeated = false
     dungeon_floor = 0
+    current_dungeon = "dungeon_1"
+    hero_immune = false
+    guard_active = false
+    titan_until = 0
+    titan_mult = 1.0
+    merchant_stock = {}
+    demon_stock = []
     _transfer_pending_bonus()
     gold_changed.emit(gold)
     inventory_changed.emit()
@@ -785,8 +1099,10 @@ func _transfer_pending_bonus() -> void:
 
 func to_save_data() -> Dictionary:
     return {
-        "v": 6,
+        "v": 7,
         "hero_id": hero_id,
+        "level": level,
+        "xp": xp,
         "gold": gold,
         "hp": hp,
         "mana": mana,
@@ -795,6 +1111,8 @@ func to_save_data() -> Dictionary:
         "equipped_weapon_id": equipped_weapon_id,
         "equipped_armor_id": equipped_armor_id,
         "demon_defeated": demon_defeated,
+        "merchant_stock": merchant_stock,
+        "demon_stock": demon_stock,
         "saved_at": Time.get_datetime_string_from_system(false, true),
     }
 
@@ -802,6 +1120,10 @@ func load_save_data(data: Dictionary) -> void:
     hero_id = String(data.get("hero_id", DEFAULT_HERO))
     if not HEROES.has(hero_id):
         hero_id = DEFAULT_HERO
+    # Шаг 19: уровень и опыт читаются ДО пересчёта ХП (сейв v7; старые
+    # сейвы мигрируют: уровень 1, опыта 0).
+    level = clampi(int(data.get("level", 1)), 1, 99)
+    xp = maxi(0, int(data.get("xp", 0)))
     gold = int(data.get("gold", hero_start_gold(hero_id)))
     inventory = []
     for item in data.get("inventory", []):
@@ -836,11 +1158,33 @@ func load_save_data(data: Dictionary) -> void:
     # ставим максимум героя с учётом надетой экипировки (шаг 12).
     hp = clampi(int(data.get("hp", max_hp())), 0, max_hp())
     mana = clampi(int(data.get("mana", max_mana())), 0, max_mana())
+    # Шаг 22: прилавок из продаж — сейв v7, старые сейвы мигрируют
+    # с пустыми лавками.
+    merchant_stock = {}
+    var saved_stock: Dictionary = data.get("merchant_stock", {})
+    if saved_stock is Dictionary:
+        for merchant_id in saved_stock:
+            var ids: Array = []
+            for item_id in saved_stock[merchant_id]:
+                ids.append(String(item_id))
+            merchant_stock[String(merchant_id)] = ids
+    # Шаг 23: то, что герой продал демону лично, тоже хранится в сейве v7
+    # (старые сейвы мигрируют с пустой лавкой демона).
+    demon_stock = []
+    var saved_demon_stock: Array = data.get("demon_stock", [])
+    if saved_demon_stock is Array:
+        for item_id in saved_demon_stock:
+            demon_stock.append(String(item_id))
     # Ярость демона и «мы видели демона» — состояние сессии (шаги 12/13).
     demon_hits = 0
     demon_enraged = false
     demon_seen = false
     dungeon_floor = 0
+    current_dungeon = "dungeon_1"
+    hero_immune = false
+    guard_active = false
+    titan_until = 0
+    titan_mult = 1.0
     # Шаг 13: демон, убитый навсегда, остаётся мёртвым и после загрузки
     # (сейв v6; старые сейвы мигрируют: демон ещё жив).
     demon_defeated = bool(data.get("demon_defeated", false))

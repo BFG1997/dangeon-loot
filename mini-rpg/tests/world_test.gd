@@ -475,7 +475,7 @@ func _ready() -> void:
     for npc in world_w._npcs:
         if String(npc["id"]) == "glot":
             glot = npc
-    check("Глот найден с хп 50 (ЗАГЛУШКА)", not glot.is_empty() and int(glot["max_hp"]) == 50)
+    check("Глот найден с хп 50", not glot.is_empty() and int(glot["max_hp"]) == 50)
     # воин вплотную слева от Глота, смотрит вправо
     world_w.player.position = (glot["node"] as Node2D).position + Vector2(-18, 0)
     world_w._facing = "side"

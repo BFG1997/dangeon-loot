@@ -27,7 +27,7 @@
 ## снаряды со свечением и следом; появились звук эффектов (Sfx) и жуткий
 ## эмбиент в духе Silent Hill; сундуков на этаже 5–7; лестница вниз
 ## открыта сразу — убивать всех не обязательно; за врагов дают опыт,
-## у героя — уровни: урон и максимум ХП удваиваются с уровнем (HUD:
+## у героя — уровни: урон и максимум ХП +35% за уровень (шаг 25; HUD:
 ## полоса опыта, большая надпись «УРОВЕНЬ N!» с золотым взрывом).
 ## Шаг 20 (полировка): звук мягче, эмбиент мелодичнее; кулдауны приёмов
 ## снижены; эффекты способностей выразительнее (кольца, пульс щита/барьера,
@@ -41,7 +41,21 @@
 ## пробеле «Смертельный прыжок» (переехал с T), на T — новая ульта
 ## «Гнев титана»: 4 секунды герой огромен, урон не проходит, бьёт x4.
 ## Данж 3 «Глубины Р'льеха» работает без изменений кода: бестиарий
-## отдаёт свои врагов и босса.
+## отдаёт свои врагов и босса. Данж 4 «Логово Древних» — тоже (шаг 24).
+## Шаг 24 (портал, ключи, лестницы, интерактив, щупальца, Шуб-Ниггурат):
+## - на месте убитого босса открывается ПОРТАЛ В ЗАМОК (анимированный);
+##   тот же портал ждёт и на этаже уже пройденного данжа;
+## - босс отдаёт КЛЮЧ следующего подземелья (boss_key в DUNGEONS) —
+##   иконка в центре экрана + подсказка; у финального босса ключа нет;
+## - лестницы стали заметнее: свет, восходящие искры, крупный спрайт и
+##   подпись; зона клика шире (шаг 24, п.5);
+## - интерактивный реквизит: бочки/ящики разбиваются (золото), мешки
+##   развязываются, кристаллы делятся силой, фонарь вспыхивает (п.6);
+## - в данжах 3 и 4 из стен вырываются НЕУЯЗВИМЫЕ щупальца (п.7):
+##   предупреждение-круг, мокрый удар, отступление; не бьются и не
+##   блокируют путь — только страх и урон;
+## - босс данжа 4 Шуб-Ниггурат (п.10): веер спор, полчища детенышей на
+##   порогах ХП, фаза 2 «сад гаснет».
 extends Node2D
 
 const WORLD_SCENE := "res://scenes/world/world.tscn"
@@ -109,6 +123,46 @@ const EXIT_HINT := "Лестница в замок открыта. Ты може
 const STAIRS_UP_NAME := "Лестница наверх"
 const STAIRS_DOWN_NAME := "Лестница вниз"
 const EXIT_NAME := "Выход в замок"
+
+## Шаг 24 (п.1): ключ следующего данжа с босса — на экране (иконка+текст).
+const KEY_HINT := "Получен ключ: %s. Дверь следующего подземелья ждёт его."
+## Шаг 24 (п.1): портал в замок на месте убитого босса.
+const PORTAL_NAME := "Портал в замок"
+const PORTAL_COLOR_A := Color(0.45, 0.85, 0.6, 0.6)
+const PORTAL_COLOR_B := Color(1.0, 0.84, 0.2, 0.5)
+## Шаг 24 (п.6): интерактивный реквизит этажей.
+const PROP_BREAK_GOLD_HINT := "Бочка разлетелась щепками: +%d золота."
+const PROP_BREAK_EMPTY_HINT := "Бочка пуста: только пыль и сквозняк."
+const PROP_SACKS_HINT := "Мешок развязался: +%d золота."
+const CRYSTAL_MANA_HINT := "Кристалл отдал свою силу: +%d маны."
+const CRYSTAL_HP_HINT := "Кристалл обжог ладони: +%d хп."
+const CRYSTAL_USED_HINT := "Кристалл потух: сила забрана."
+const LANTERN_HINT := "Фонарь вспыхнул ярче — тень на миг отступила."
+const LANTERN_USED_HINT := "Фонарь снова притих."
+## Шаг 24 (п.7): щупальца из стен — данжи 3 и 4, неуязвимые предвестники.
+const TENTACLE_TEX_PATH := "res://assets/sprites/dungeon/tentacle_wall.png"
+const TENTACLE_HINT_FIRST := "Из стены вырывается щупальце! Предвестник того, что растёт в четвёртом подземелье."
+const TENTACLE_HINT := "Из стены вырывается щупальце!"
+const TENTACLE_MIN_INTERVAL := 9.0     # сек между вылазками (данж 4: чаще)
+const TENTACLE_MAX_INTERVAL := 15.0
+const TENTACLE_MIN_INTERVAL_4 := 6.5
+const TENTACLE_MAX_INTERVAL_4 := 11.0
+const TENTACLE_LIFE := 4.2             # сколько секунд щупальце торчит
+const TENTACLE_TELL := 0.8             # сек между предупреждением и ударом
+const TENTACLE_RADIUS := 30.0          # радиус удара (px)
+const TENTACLE_DMG := 14               # урон удара (шаг 25: подтверждено, 12 -> 14)
+## Шаг 24 (п.10): Шуб-Ниггурат — споры, полчища, фаза 2.
+const SHUB_VOLLEY_CD := 4.2            # период веера спор (с)
+const SHUB_VOLLEY_N := 7               # спор в веере
+const SHUB_VOLLEY_SPREAD := 34.0       # полуширина веера (градусы)
+const SHUB_SUMMON_HP := [0.75, 0.5, 0.25]   # пороги ХП призыва (по разу)
+const SHUB_SUMMON_IDS := ["night_gaunt", "moon_beast",
+    "tentacle_abomination"]            # полчища детенышей (пары по порогу)
+const SHUB_PHASE2_HP := 0.4            # доля ХП для фазы 2 «сад гаснет»
+const SHUB_PHASE2_CD := 0.9            # кулдаун когтей в фазе 2 (с)
+const SHUB_PHASE2_SPEED := 58.0        # скорость в фазе 2 (px/с, < 95)
+const SHUB_WHISPER_CD := 12.0          # период шёпота Козни (с)
+const SHUB_SUMMON_COUNT := 2           # детенышей на порог
 
 ## Сундуки (шаг 14): спрайты 16×16 (chest_closed/chest_open), открытие —
 ## клик по сундуку или E рядом. Таблицы добычи — Loot.chest_loot.
@@ -216,6 +270,11 @@ var _hold_visual: Sprite2D = null       # круг барьера/щита (glow
 var _gas_clouds: Array[Dictionary] = []  # облака газа бомжа
 var _titan_big := false                  # шаг 22: спрайт вырос (гнев титана)
 var _titan_base_scale := Vector2.ONE     # шаг 22: обычный размер спрайта
+## Шаг 24: интерактивный реквизит, щупальца из стен.
+var _interactives: Array[Dictionary] = []   # бочки/кристаллы/фонари этажа
+var _wall_tentacles: Array[Dictionary] = [] # живые щупальца из стен
+var _tentacle_timer := 5.0                  # до следующей вылазки щупалец
+var _tentacle_hint_shown := false
 var _ability_axe_tex: Texture2D = null
 var _facing := "down"
 var _hero_sheet_tex: Texture2D
@@ -325,7 +384,8 @@ func _build_walk_screen() -> void:
     holder.name = "WalkScreen"
     holder.stretch = true
     holder.position = Vector2.ZERO
-    holder.size = Vector2(360.0, WALK_H)
+    # шаг 25: ПК-раскладка — экран ходьбы во всю ширину окна минус консоль
+    holder.size = get_viewport_rect().size - Vector2(0, UI_BAR_H)
     holder.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     var walk_view := SubViewport.new()
     walk_view.name = "WalkViewport"
@@ -356,6 +416,7 @@ func _load_floor(floor_num: int) -> void:
     _floor_num = clampi(floor_num, 1, DungeonBestiary.FLOORS)
     Game.dungeon_floor = _floor_num
     _clear_level()
+    _interactives.clear()   # шаг 24: реквизит нового этажа пересобирается
     var is_boss_floor: bool = _floor_num >= DungeonBestiary.FLOORS
     # шаг 16: босс данжа 1 мёртв навсегда через demon_defeated, босс данжа 2 —
     # через пройденность данжа (dungeons_cleared сохраняется в сейве)
@@ -401,10 +462,11 @@ func _load_floor(floor_num: int) -> void:
     _stairs_down = {}
     _stairs_exit = {}
     var up: Vector2i = level["up"]
-    _register_stairs(_stairs_up, STAIRS_UP_NAME, up, "_use_stairs_up")
+    _register_stairs(_stairs_up, STAIRS_UP_NAME, up, "_use_stairs_up", TILE_UP)
     var down: Vector2i = level["down"]
     if down.x >= 0:
-        _register_stairs(_stairs_down, STAIRS_DOWN_NAME, down, "_use_stairs_down")
+        _register_stairs(_stairs_down, STAIRS_DOWN_NAME, down,
+            "_use_stairs_down", TILE_DOWN)
 
     # враги (шаг 15): у каждого спавна свой вид и флаг «элитного чемпиона»
     _foes.clear()
@@ -445,6 +507,8 @@ func _clear_level() -> void:
     _boss_dialog_done = false
     _boss_defeated_here = false
     _chests.clear()
+    _interactives.clear()
+    _wall_tentacles.clear()
     _stairs_up = {}
     _stairs_down = {}
     _stairs_exit = {}
@@ -593,6 +657,24 @@ func _spawn_prop(kind: String, tile: Vector2i) -> void:
     body_shape.position = Vector2(0, -2)
     body.add_child(body_shape)
     node.add_child(body)
+    # Шаг 24 (п.6): реквизит ИНТЕРАКТИВЕН — клик по нему не бьёт мечом,
+    # а использует (E тоже). Трон и жаровни зала босса остаются декором.
+    if kind != "throne" and kind != "brazier":
+        var area := Area2D.new()
+        area.input_pickable = true
+        area.collision_layer = 4
+        area.collision_mask = 0
+        var area_shape := CollisionShape2D.new()
+        var rect := RectangleShape2D.new()
+        rect.size = Vector2(20, 20)
+        area_shape.shape = rect
+        area.add_child(area_shape)
+        node.add_child(area)
+        var rec := {"kind": kind, "tile": tile, "pos": center,
+            "node": node, "sprite": node.get_child(node.get_child_count() - 1),
+            "body": body, "used": false}
+        area.input_event.connect(_on_prop_input.bind(rec))
+        _interactives.append(rec)
     if PROP_ANIM.has(kind):
         var spr := AnimatedSprite2D.new()
         spr.sprite_frames = _make_prop_frames(PROP_ANIM[kind], 5.0)
@@ -604,6 +686,11 @@ func _spawn_prop(kind: String, tile: Vector2i) -> void:
         spr2.texture = load(String(PROP_TEX.get(kind, PROP_TEX["barrel"])))
         spr2.position = Vector2(0, -2)
         node.add_child(spr2)
+    # Шаг 24: визуальный узел пропа — последний добавленный ребёнок
+    if not _interactives.is_empty() \
+            and (_interactives.back() as Dictionary)["node"] == node:
+        (_interactives.back() as Dictionary)["sprite"] = \
+            node.get_child(node.get_child_count() - 1)
     # цветной свет пропа (жаровни/кристаллы/фонарь)
     match kind:
         "brazier":
@@ -741,6 +828,8 @@ func _spawn_boss(tile: Vector2i) -> void:
         "boss": true, "dead": false, "flash_tween": null}
     if String(def["id"]) == "boss_cthulhu":
         _decorate_cthulhu(boss)       # шаг 21: глаза-угли, аура, дыхание
+    elif String(def["id"]) == "boss_shub":
+        _decorate_shub(boss)          # шаг 24: три глаза, аура спор, дыхание
     _foes.append(boss)
 
 func _make_hp_bar(hp: int, s: float) -> ProgressBar:
@@ -761,9 +850,11 @@ func _make_hp_bar(hp: int, s: float) -> ProgressBar:
 
 # ---------------------------------------------------------------- лестницы
 
-## Лестница: тайл на полу + зона клика (Area2D). По E — ближайшая в радиусе.
+## Лестница (шаг 24, п.5): тайл на полу + зона клика (Area2D), а также
+## СВЕТ, восходящие искры, крупный спрайт ступеней и подпись — лестницы
+## теперь видно издалека и хочется подойти. По E — ближайшая в радиусе.
 func _register_stairs(store: Dictionary, title: String, tile: Vector2i,
-        method: String) -> void:
+        method: String, tile_coord: Vector2i = Vector2i(0, 2)) -> void:
     var center := Vector2(tile.x * 16.0 + 8.0, tile.y * 16.0 + 8.0)
     var area := Area2D.new()
     area.input_pickable = true
@@ -771,7 +862,7 @@ func _register_stairs(store: Dictionary, title: String, tile: Vector2i,
     area.collision_mask = 0
     var shape := CollisionShape2D.new()
     var rect := RectangleShape2D.new()
-    rect.size = Vector2(18, 18)
+    rect.size = Vector2(24, 24)   # шаг 24: зона клика шире
     shape.shape = rect
     area.add_child(shape)
     area.input_event.connect(_on_stairs_input.bind(method))
@@ -779,6 +870,61 @@ func _register_stairs(store: Dictionary, title: String, tile: Vector2i,
     marker.name = title
     marker.position = center
     marker.add_child(area)
+    # --- шаг 24: крупный спрайт ступеней (2x2 из атласа, «чанки»)
+    var atlas: Texture2D = load("res://assets/tilesets/dungeon_tiles.png")
+    var big := AtlasTexture.new()
+    big.atlas = atlas
+    big.region = Rect2(tile_coord.x * 16.0, tile_coord.y * 16.0, 16.0, 16.0)
+    var spr := Sprite2D.new()
+    spr.texture = big
+    spr.scale = Vector2(1.9, 1.9)
+    spr.position = Vector2(0, -6)
+    marker.add_child(spr)
+    # --- мягкий свет: у лестницы свой оттенок (вверх — синий, вниз —
+    # фиолет, выход/портал — золото)
+    var color := Color(0.6, 0.75, 1.0, 0.4)
+    if method == "_use_stairs_down":
+        color = Color(0.7, 0.5, 1.0, 0.42)
+    elif method == "_use_stairs_exit":
+        color = PORTAL_COLOR_A
+    var glow := Sprite2D.new()
+    glow.texture = _glow_tex
+    glow.material = _glow_mat
+    glow.scale = Vector2(2.2, 2.2)
+    glow.modulate = color
+    glow.position = Vector2(0, -8)
+    marker.add_child(glow)
+    var pulse := glow.create_tween().set_loops()
+    pulse.tween_property(glow, "modulate:a", color.a * 0.55, 0.9) \
+        .set_trans(Tween.TRANS_SINE)
+    pulse.tween_property(glow, "modulate:a", color.a, 0.9) \
+        .set_trans(Tween.TRANS_SINE)
+    # --- восходящие искры (вниз — опадающие): лестница «дышит»
+    var sparks := CPUParticles2D.new()
+    sparks.amount = 7
+    sparks.lifetime = 1.1
+    sparks.position = Vector2(0, -2)
+    sparks.direction = Vector2(0, -1) if method != "_use_stairs_down" \
+        else Vector2(0, 1)
+    sparks.spread = 16.0
+    sparks.initial_velocity_min = 6.0
+    sparks.initial_velocity_max = 16.0
+    sparks.scale_amount_min = 1.0
+    sparks.scale_amount_max = 2.0
+    sparks.color = Color(color.r, color.g, color.b, 0.75)
+    sparks.emitting = true
+    marker.add_child(sparks)
+    # --- подпись: имя лестницы над ней (как у NPC)
+    var label := Label.new()
+    label.text = title
+    label.position = Vector2(-56, -float(CHAR_H) * 2 - 6)
+    label.size = Vector2(112, 12)
+    label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    label.add_theme_font_size_override("font_size", 8)
+    label.add_theme_color_override("font_color", COLOR_GOLD)
+    label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
+    label.add_theme_constant_override("shadow_offset_y", 1)
+    marker.add_child(label)
     _level_root.add_child(marker)
     store["pos"] = center
     store["area"] = area
@@ -832,7 +978,86 @@ func _place_exit(tile: Vector2i) -> void:
     _set_grid_cell(tile, "X")
     if _ground != null:
         _ground.set_cell(tile, _tile_source_id, TILE_EXIT)
-    _register_stairs(_stairs_exit, EXIT_NAME, tile, "_use_stairs_exit")
+    _register_stairs(_stairs_exit, EXIT_NAME, tile, "_use_stairs_exit", TILE_EXIT)
+    _spawn_portal(_stairs_exit["pos"])
+
+## Портал в замок (шаг 24, п.1): анимированный выход из данжа — два
+## вращающихся кольца света, восходящие искры и подпись. Клик по нему
+## работает как по лестнице-выходу (зона 28 px), E — тоже.
+func _spawn_portal(pos: Vector2) -> void:
+    var node := Node2D.new()
+    node.name = "Portal"
+    node.add_to_group("portal")
+    node.position = pos
+    var ring_a := Sprite2D.new()
+    ring_a.texture = _glow_tex
+    ring_a.material = _glow_mat
+    ring_a.scale = Vector2(1.7, 1.7)
+    ring_a.modulate = PORTAL_COLOR_A
+    node.add_child(ring_a)
+    var ring_b := Sprite2D.new()
+    ring_b.texture = _glow_tex
+    ring_b.material = _glow_mat
+    ring_b.scale = Vector2(1.1, 1.1)
+    ring_b.modulate = PORTAL_COLOR_B
+    node.add_child(ring_b)
+    # вращение колец в противофазе — портал «живой»
+    var ta := ring_a.create_tween().set_loops()
+    ta.tween_property(ring_a, "rotation", TAU, 3.2).from(0.0)
+    ta.parallel().tween_property(ring_a, "scale", Vector2(1.9, 1.9), 1.2) \
+        .set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+    ta.chain().tween_property(ring_a, "scale", Vector2(1.6, 1.6), 1.2) \
+        .set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+    var tb := ring_b.create_tween().set_loops()
+    tb.tween_property(ring_b, "rotation", -TAU, 2.4).from(0.0)
+    tb.parallel().tween_property(ring_b, "modulate:a",
+        PORTAL_COLOR_B.a * 0.55, 0.7).set_trans(Tween.TRANS_SINE)
+    tb.tween_property(ring_b, "modulate:a", PORTAL_COLOR_B.a, 0.7) \
+        .set_trans(Tween.TRANS_SINE)
+    # столб восходящих искр
+    var sparks := CPUParticles2D.new()
+    sparks.amount = 12
+    sparks.lifetime = 1.3
+    sparks.position = Vector2(0, -4)
+    sparks.direction = Vector2(0, -1)
+    sparks.spread = 14.0
+    sparks.initial_velocity_min = 10.0
+    sparks.initial_velocity_max = 26.0
+    sparks.scale_amount_min = 1.0
+    sparks.scale_amount_max = 2.2
+    sparks.color = Color(0.5, 0.9, 0.65, 0.8)
+    sparks.emitting = true
+    node.add_child(sparks)
+    var label := Label.new()
+    label.text = PORTAL_NAME
+    label.position = Vector2(-56, -52)
+    label.size = Vector2(112, 12)
+    label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    label.add_theme_font_size_override("font_size", 8)
+    label.add_theme_color_override("font_color", Color(0.55, 0.95, 0.65))
+    label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
+    label.add_theme_constant_override("shadow_offset_y", 1)
+    node.add_child(label)
+    # собственная зона клика 28 px: клик = выход в замок
+    var area := Area2D.new()
+    area.input_pickable = true
+    area.collision_layer = 4
+    area.collision_mask = 0
+    var shape := CollisionShape2D.new()
+    var rect := RectangleShape2D.new()
+    rect.size = Vector2(28, 28)
+    shape.shape = rect
+    area.add_child(shape)
+    area.input_event.connect(_on_portal_input)
+    node.add_child(area)
+    _level_root.add_child(node)
+
+func _on_portal_input(_viewport: Node, event: InputEvent,
+        _shape_idx: int) -> void:
+    if event is InputEventMouseButton and event.pressed \
+            and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+        _click_dialog_at = Time.get_ticks_msec()
+        _use_stairs("_use_stairs_exit")
 
 ## Тайл выхода, свободный от сундуков: если на тайле стоит сундук,
 ## выход появляется на ближайшем свободном полу рядом (по спирали).
@@ -929,6 +1154,210 @@ func _open_chest(chest: Dictionary) -> void:
     _show_loot_popup("+%d золота" % amount,
         "res://assets/sprites/icons/pouch_gold.png", "gold")
     Sfx.play("coin")
+
+# ----------------------------------- интерактивный реквизит (шаг 24, п.6)
+
+func _on_prop_input(_viewport: Node, event: InputEvent, _shape_idx: int,
+        rec: Dictionary) -> void:
+    if event is InputEventMouseButton and event.pressed \
+            and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+        _click_dialog_at = Time.get_ticks_msec()   # этот клик — не удар
+        _use_interactive(rec)
+
+## Использовать интерактивный объект (шаг 24, п.6):
+## бочка/ящик — разбить (золото или пусто), мешок — развязать,
+## кристалл — разделиться силой (мана магу, хп остальным), фонарь — вспышка.
+func _use_interactive(rec: Dictionary) -> void:
+    if _player_dead or player == null:
+        return
+    if bool(rec.get("used", false)):
+        return
+    rec["used"] = true
+    var kind := String(rec["kind"])
+    var pos: Vector2 = rec["pos"]
+    match kind:
+        "barrel", "crate":
+            (rec["sprite"] as Node2D).visible = false
+            (rec["body"] as StaticBody2D).get_child(0).call_deferred(
+                "set_disabled", true)
+            _spawn_hit_impact(pos + Vector2(0, -6), Color(0.72, 0.55, 0.35))
+            _spell_poof(pos + Vector2(0, -8), Color(0.68, 0.5, 0.3))
+            Sfx.play("chest", -4.0)
+            if randi() % 100 < 45:
+                var amount := randi_range(4, 12)
+                Game.add_gold(amount)
+                Sfx.play("coin")
+                _show_hint(String(PROP_BREAK_GOLD_HINT) % amount, 2.2)
+                _show_loot_popup("+%d золота" % amount,
+                    "res://assets/sprites/icons/pouch_gold.png", "gold")
+            else:
+                _show_hint(PROP_BREAK_EMPTY_HINT, 2.0)
+        "sacks":
+            (rec["sprite"] as Node2D).visible = false
+            _spell_poof(pos + Vector2(0, -8), Color(0.62, 0.58, 0.44))
+            var amount2 := randi_range(2, 8)
+            Game.add_gold(amount2)
+            Sfx.play("coin")
+            _show_hint(String(PROP_SACKS_HINT) % amount2, 2.2)
+            _show_loot_popup("+%d золота" % amount2,
+                "res://assets/sprites/icons/pouch_gold.png", "gold")
+        "crystal", "crystal_violet":
+            var tint := Color(0.4, 0.75, 0.9) if kind == "crystal" \
+                else Color(0.7, 0.5, 1.0)
+            _spell_poof(pos + Vector2(0, -10), tint)
+            _spawn_ring(pos + Vector2(0, -8), tint, 1.6)
+            Sfx.play("heal", -4.0)
+            if Game.is_mage():
+                var restored := Game.restore_mana(15)
+                _show_hint(String(CRYSTAL_MANA_HINT) % restored, 2.4)
+            else:
+                var healed := Game.heal_hp(5)
+                _show_hint(String(CRYSTAL_HP_HINT) % healed, 2.4)
+            var spr_node: Node2D = rec["sprite"]
+            spr_node.modulate = Color(0.55, 0.55, 0.6)
+        "lantern":
+            _spell_poof(pos + Vector2(0, -12), Color(1.0, 0.85, 0.5))
+            _spawn_ring(pos + Vector2(0, -10), Color(1.0, 0.8, 0.45, 0.6), 2.4)
+            Sfx.play("stairs", -6.0)
+            _show_hint(LANTERN_HINT, 2.2)
+            (rec["sprite"] as Node2D).modulate = Color(1.15, 1.1, 0.95)
+        _:
+            rec["used"] = false
+
+# ----------------------------------- щупальца из стен (шаг 24, п.7)
+
+## Вылазка щупальца: НЕУЯЗВИМЫЙ и незаблокирующий хазард — не в _foes,
+## кликом не выделяется, бьёт с предупреждением и прячется обратно.
+func _update_wall_tentacles(delta: float) -> void:
+    if player == null or _player_dead:
+        return
+    # спавн по таймеру: только в данжах 3 и 4 (в 4-м — чаще: они «дома»)
+    if _dungeon_id != "dungeon_3" and _dungeon_id != "dungeon_4":
+        return
+    _tentacle_timer -= delta
+    if _tentacle_timer <= 0.0:
+        _spawn_wall_tentacle()
+        _tentacle_timer = randf_range(TENTACLE_MIN_INTERVAL_4, TENTACLE_MAX_INTERVAL_4) \
+            if _dungeon_id == "dungeon_4" \
+            else randf_range(TENTACLE_MIN_INTERVAL, TENTACLE_MAX_INTERVAL)
+    # жизнь активных щупалец: предупреждение -> удар -> отступление
+    var now_ms := Time.get_ticks_msec()
+    for i in range(_wall_tentacles.size() - 1, -1, -1):
+        var rec: Dictionary = _wall_tentacles[i]
+        var node: Node2D = rec["node"]
+        var t := float(now_ms - int(rec["born"])) / 1000.0
+        # выдвижение: рост из стены
+        var grow := clampf(t / 0.5, 0.0, 1.0)
+        (node.get_child(1) as Sprite2D).scale = \
+            (rec["base_scale"] as Vector2) * grow
+        if t >= float(rec["slam_in"]) and not bool(rec["slammed"]):
+            rec["slammed"] = true
+            _wall_tentacle_slam(rec)
+        if t >= TENTACLE_LIFE:
+            # отступление: щупальце уходит обратно в камень
+            var tw := create_tween()
+            tw.tween_property(node, "scale", Vector2(0.05, 0.05), 0.45) \
+                .set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+            tw.tween_callback(func() -> void:
+                if is_instance_valid(node):
+                    node.queue_free())
+            _wall_tentacles.remove_at(i)
+
+## Спавн щупальца у стены рядом с героем (2..8 тайлов, из стены в пол).
+func _spawn_wall_tentacle() -> void:
+    var ptile := Vector2i(int(floor(player.position.x / 16.0)),
+        int(floor(player.position.y / 16.0)))
+    var best := Vector2i(-1, -1)
+    var wall_t := Vector2i(-1, -1)
+    for attempt in range(40):
+        var dx := randi_range(-8, 8)
+        var dy := randi_range(-8, 8)
+        var t := ptile + Vector2i(dx, dy)
+        var d := float(Vector2(t - ptile).length())
+        if d < 2.5 or d > 8.0:
+            continue
+        if t.x < 1 or t.y < 1 or t.x >= DungeonBestiary.MAP_W - 1 \
+                or t.y >= DungeonBestiary.MAP_H - 1:
+            continue
+        if _tile_is_solid(Vector2(t.x * 16.0 + 8.0, t.y * 16.0 + 8.0)):
+            continue
+        # ищем стену-соседа: щупальце лезет ИЗ стены
+        for off in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+            var n: Vector2i = t + off
+            if n.x < 0 or n.y < 0 or n.x >= DungeonBestiary.MAP_W \
+                    or n.y >= DungeonBestiary.MAP_H:
+                continue
+            if String(_grid[n.y][n.x]) == "#":
+                best = t
+                wall_t = n
+                break
+        if best.x >= 0:
+            break
+    if best.x < 0:
+        return
+    var center := Vector2(best.x * 16.0 + 8.0, best.y * 16.0 + 8.0)
+    var node := Node2D.new()
+    node.name = "WallTentacle_%d_%d" % [best.x, best.y]
+    node.position = center
+    node.z_index = 9
+    var spr := Sprite2D.new()
+    spr.texture = load(TENTACLE_TEX_PATH)
+    # ориентация: жало торчит ОТ стены в пол
+    var toward := Vector2(best - wall_t)
+    spr.rotation = Vector2(0, -1).angle_to(Vector2(toward))
+    spr.position = Vector2(0, -10)
+    spr.modulate = Color(0.85, 0.95, 0.8)
+    node.add_child(spr)
+    var glow := Sprite2D.new()
+    glow.texture = _glow_tex
+    glow.material = _glow_mat
+    glow.scale = Vector2(1.4, 1.4)
+    glow.modulate = Color(0.35, 0.7, 0.4, 0.4)
+    node.add_child(glow)
+    node.move_child(glow, 0)
+    node.scale = Vector2(0.05, 0.05)
+    _level_root.add_child(node)
+    var warn := Sprite2D.new()
+    warn.texture = _glow_tex
+    warn.material = _glow_mat
+    warn.position = center
+    warn.scale = Vector2(0.6, 0.6)
+    warn.modulate = Color(0.85, 0.3, 0.12, 0.35)
+    warn.z_index = 8
+    _fx.add_child(warn)
+    var wt := warn.create_tween().set_loops()
+    wt.tween_property(warn, "modulate:a", 0.75, 0.2)
+    wt.tween_property(warn, "modulate:a", 0.3, 0.2)
+    _wall_tentacles.append({"node": node, "pos": center, "born": Time.get_ticks_msec(),
+        "slam_in": TENTACLE_TELL + 0.4, "slammed": false, "warn": warn,
+        "base_scale": Vector2(1.5, 1.5)})
+    if not _tentacle_hint_shown:
+        _tentacle_hint_shown = true
+        _show_hint(TENTACLE_HINT_FIRST, 4.5)
+    else:
+        _show_hint(TENTACLE_HINT, 2.0)
+    Sfx.play("slam", -10.0)
+
+## Удар щупальца: мокрый звук, тряска, урон в радиусе круга.
+func _wall_tentacle_slam(rec: Dictionary) -> void:
+    if rec.has("warn") and is_instance_valid(rec["warn"]):
+        (rec["warn"] as Sprite2D).queue_free()
+    var pos: Vector2 = rec["pos"]
+    Sfx.play("slam", -4.0)
+    _shake_camera(4.0, 0.3)
+    _spawn_ring(pos, Color(0.35, 0.6, 0.4), 2.0)
+    for k in range(5):
+        var ang := TAU * float(k) / 5.0
+        _spell_poof(pos + Vector2(cos(ang), sin(ang)) * 10.0,
+            Color(0.3, 0.52, 0.38))
+    if Game.hp > 0 and not _player_dead \
+            and player.position.distance_to(pos) <= TENTACLE_RADIUS + 6.0:
+        Game.damage_hp(TENTACLE_DMG)
+        Sfx.play("hurt")
+        _flash_player()
+        _spawn_hit_impact(player.position + Vector2(0, -14),
+            Color(0.5, 0.75, 0.55))
+        _spawn_damage_label(player.position + Vector2(0, -40), TENTACLE_DMG)
 
 # ------------------------------------------------ добыча на экране (шаг 19)
 
@@ -1058,7 +1487,7 @@ func _on_level_up(new_level: int) -> void:
     tw.tween_interval(1.4)
     tw.tween_property(label, "modulate:a", 0.0, 0.5)
     tw.tween_callback(func() -> void: center.queue_free())
-    _show_hint("Уровень %d: урон и ХП выросли вдвое!" % new_level, 3.0)
+    _show_hint("Уровень %d: урон и ХП выросли на 35%%!" % new_level, 3.0)
 
 ## Полоса опыта в HUD — по сигналу Game.xp_changed.
 func _on_xp_changed(xp_value: int, xp_need: int) -> void:
@@ -1158,6 +1587,7 @@ func _physics_process(delta: float) -> void:
     _update_titan(delta)
     _update_walk_anim(delta, moving, dir)
     _update_foes(delta)
+    _update_wall_tentacles(delta)
     _update_boss_trigger()
 
 func _joystick_output() -> Vector2:
@@ -1216,17 +1646,24 @@ func _walk_pos_to_world(view_pos: Vector2) -> Vector2:
         return Vector2.INF
     return _walk_view.get_canvas_transform().affine_inverse() * view_pos
 
-## Под точкой клика — лестница или сундук? (враги не «интерактивны», по ним бьют)
+## Под точкой клика — лестница, сундук или интерактивный реквизит?
+## (враги и щупальца не «интерактивны»: по ним бьют; щупальца не бьются)
 func _point_on_interactive(pos: Vector2) -> bool:
     for store in [_stairs_up, _stairs_down, _stairs_exit]:
         if (store as Dictionary).is_empty():
             continue
         var spos: Vector2 = (store as Dictionary)["pos"]
-        if absf(pos.x - spos.x) <= 10.0 and absf(pos.y - spos.y) <= 10.0:
+        if absf(pos.x - spos.x) <= 12.0 and absf(pos.y - spos.y) <= 12.0:
             return true
     for chest in _chests:
         var cpos: Vector2 = chest["pos"]
         if absf(pos.x - cpos.x) <= 10.0 and absf(pos.y - cpos.y) <= 10.0:
+            return true
+    for rec in _interactives:
+        if bool(rec.get("used", false)):
+            continue
+        var rpos: Vector2 = rec["pos"]
+        if absf(pos.x - rpos.x) <= 10.0 and absf(pos.y - rpos.y) <= 10.0:
             return true
     return false
 
@@ -1268,7 +1705,8 @@ func _unhandled_input(event: InputEvent) -> void:
             and Time.get_ticks_msec() - _dialogue_closed_at > 250:
         _use_nearest_stairs()
 
-## Ближайшая интерактивность в радиусе 26 px (E): лестницы и закрытые сундуки.
+## Ближайшая интерактивность в радиусе 26 px (E): лестницы, закрытые
+## сундуки и живой интерактивный реквизит (шаг 24, п.6).
 func _use_nearest_stairs() -> void:
     if player == null or _player_dead:
         return
@@ -1293,10 +1731,21 @@ func _use_nearest_stairs() -> void:
             best = d
             method = "_open_chest"
             chest = c
+    var prop: Dictionary = {}
+    for rec in _interactives:
+        if bool(rec.get("used", false)):
+            continue
+        var d: float = player.position.distance_to(rec["pos"])
+        if d < best:
+            best = d
+            method = "_use_interactive"
+            prop = rec
     if method.is_empty():
         return
     if method == "_open_chest":
         _open_chest(chest)
+    elif method == "_use_interactive":
+        _use_interactive(prop)
     else:
         _use_stairs(method)
 
@@ -1442,6 +1891,8 @@ func _update_foes(delta: float) -> void:
             continue
         if String(foe.get("id", "")) == "boss_cthulhu":
             _update_cthulhu(foe, def, delta)   # шаг 21: тактика Ктулху
+        elif String(foe.get("id", "")) == "boss_shub":
+            _update_shub(foe, def, delta)      # шаг 24: тактика Шуб-Ниггурат
         var to := player.position - node.position
         var dist := to.length()
         if not bool(foe["aggro"]):
@@ -1988,7 +2439,7 @@ func _on_t_pressed() -> void:
             pass
 
 ## Выплеск магии: вся мана — в волну, бьющую всех врагов этажа
-## (20 урона × уровень героя; урон линейный, не удваивается с уровнем).
+## (20 урона × уровень героя; урон линейный — не растёт с hero_level_mult).
 func _do_mana_burst(info: Dictionary) -> void:
     var spent := Game.mana
     Game.spend_mana(Game.mana)
@@ -2184,7 +2635,7 @@ func _on_dialogue_closed() -> void:
 
 # ------------------------------------ Ктулху (шаг 21): УСТРАШЕНИЕ
 
-## Параметры «страшного» Ктулху. Числа — ЗАГЛУШКИ (утверждает автор).
+## Параметры «страшного» Ктулху (баланс шага 24, утверждено в шаге 25).
 const CTHULHU_SLAM_CD := 7.0        # период удара щупалец (с)
 const CTHULHU_SLAM_TELL := 0.85     # секунд между предупреждением и ударом
 const CTHULHU_SLAM_RADIUS := 34.0   # радиус удара щупалец (px)
@@ -2363,9 +2814,122 @@ func _cthulhu_whisper() -> void:
     _cthulhu_whisper_idx = (_cthulhu_whisper_idx + 1) % whispers.size()
     _show_hint(String(whispers[_cthulhu_whisper_idx]), 3.4)
 
+## -------------------------------- Шуб-Ниггурат (шаг 24, п.10)
+
+## Декор Шуб-Ниггурат: третий глаз, аура спор, дыхание массой, пороги.
+func _decorate_shub(boss: Dictionary) -> void:
+    var node: Node2D = boss["node"]
+    var spr: AnimatedSprite2D = boss["sprite"]
+    var eyes: Array = []
+    for eye_pos: Vector2 in [Vector2(-12, -96), Vector2(12, -96),
+            Vector2(0, -84)]:
+        var eye := Sprite2D.new()
+        eye.texture = _glow_tex
+        eye.material = _glow_mat
+        eye.position = eye_pos
+        eye.modulate = Color(0.85, 0.95, 0.3, 0.55)
+        eye.scale = Vector2(0.5, 0.5)
+        node.add_child(eye)
+        var tw := eye.create_tween().set_loops()
+        tw.tween_property(eye, "modulate:a", 0.95, 1.0)
+        tw.tween_property(eye, "modulate:a", 0.4, 1.0)
+        eyes.append(eye)
+    var aura := Sprite2D.new()
+    aura.texture = _glow_tex
+    aura.material = _glow_mat
+    aura.position = Vector2(0, -16)
+    aura.modulate = Color(0.2, 0.34, 0.12, 0.45)
+    aura.scale = Vector2(2.0, 1.5)
+    node.add_child(aura)
+    node.move_child(aura, 0)
+    var breathe := node.create_tween().set_loops()
+    breathe.tween_property(spr, "scale",
+        Vector2(BOSS_SIZE_MULT * 1.05, BOSS_SIZE_MULT * 1.05), 1.7) \
+        .set_trans(Tween.TRANS_SINE)
+    breathe.tween_property(spr, "scale", Vector2(BOSS_SIZE_MULT,
+        BOSS_SIZE_MULT), 1.7).set_trans(Tween.TRANS_SINE)
+    boss["eyes"] = eyes
+    boss["volley_cd"] = 3.0
+    boss["whisper_cd"] = 5.0
+
+## Тактика Шуб-Ниггурат: веер спор, полчища детенышей на порогах ХП,
+## шёпот Козни, фаза 2 «сад гаснет» (воздух темнеет, когти быстрее).
+func _update_shub(foe: Dictionary, def: Dictionary, delta: float) -> void:
+    if not bool(foe["aggro"]):
+        return
+    var node: Node2D = foe["node"]
+    var hp_frac := float(foe["hp"]) / maxf(1.0, float(foe["max_hp"]))
+    # --- фаза 2: сад гаснет
+    if not bool(foe.get("phase2", false)) and hp_frac <= SHUB_PHASE2_HP:
+        foe["phase2"] = true
+        foe["attack_cd_override"] = SHUB_PHASE2_CD
+        foe["speed_override"] = SHUB_PHASE2_SPEED
+        if _air != null:
+            _air.color = Color(_air_base.r * 0.45, _air_base.g * 0.5,
+                _air_base.b * 0.5)
+        for eye in foe.get("eyes", []):
+            (eye as Sprite2D).modulate = Color(0.95, 0.2, 0.1, 1.0)
+        _shake_camera(7.0, 0.9)
+        Sfx.play("roar")
+        _spawn_ring(node.position + Vector2(0, -26), Color(0.55, 0.75, 0.3), 3.4)
+        _show_hint("Сад Шуб-Ниггурат гаснет. Её молоко больше не для тебя.", 3.0)
+        return
+    # --- полчища детенышей на порогах ХП
+    for i in range(SHUB_SUMMON_HP.size()):
+        var key := "summon_%d" % i
+        if not bool(foe.get(key, false)) and hp_frac <= float(SHUB_SUMMON_HP[i]):
+            foe[key] = true
+            _shub_summon(node, i)
+    # --- шёпот Козни
+    foe["whisper_cd"] = maxf(0.0, float(foe.get("whisper_cd", 5.0)) - delta)
+    if float(foe["whisper_cd"]) <= 0.0:
+        foe["whisper_cd"] = SHUB_WHISPER_CD
+        _cthulhu_whisper()   # общий механизм шёпота: текст берётся из данжа
+    # --- веер спор
+    foe["volley_cd"] = maxf(0.0, float(foe.get("volley_cd", 3.0)) - delta)
+    if float(foe["volley_cd"]) <= 0.0 and Game.hp > 0 and not _player_dead:
+        foe["volley_cd"] = SHUB_VOLLEY_CD
+        for k in range(SHUB_VOLLEY_N):
+            var spread := -SHUB_VOLLEY_SPREAD \
+                + 2.0 * SHUB_VOLLEY_SPREAD * float(k) \
+                / float(SHUB_VOLLEY_N - 1)
+            _spawn_foe_bolt(foe, def, spread, Color(0.75, 0.9, 0.5))
+
+## Полчище детенышей (шаг 24): пара тварей из бестиария данжа 4 вокруг Матери.
+func _shub_summon(boss_node: Node2D, threshold_idx: int) -> void:
+    var placed := 0
+    var offs: Array[Vector2] = [Vector2(-30, -20), Vector2(30, -20),
+        Vector2(0, 30)]
+    for k in range(SHUB_SUMMON_COUNT):
+        var foe_id := String(SHUB_SUMMON_IDS[(threshold_idx * SHUB_SUMMON_COUNT + k)
+            % SHUB_SUMMON_IDS.size()])
+        var def := DungeonBestiary.foe_def(foe_id)
+        if def.is_empty():
+            continue
+        if k >= offs.size():
+            break
+        var pos := boss_node.position + offs[k]
+        var tile := Vector2i(int(floor(pos.x / 16.0)),
+            int(floor((pos.y - 8.0) / 16.0)))
+        if tile.x < 1 or tile.y < 1 \
+                or tile.x >= DungeonBestiary.MAP_W - 1 \
+                or tile.y >= DungeonBestiary.MAP_H - 1:
+            continue
+        if _tile_is_solid(Vector2(pos.x, pos.y - 8.0)):
+            continue
+        _spawn_foe(def, tile)
+        _spell_poof(_feet_pos(Vector2(tile)) + Vector2(0, -16),
+            Color(0.75, 0.9, 0.5))
+        placed += 1
+    if placed > 0:
+        Sfx.play("bolt", -4.0)
+        _spawn_ring(boss_node.position + Vector2(0, -24),
+            Color(0.75, 0.9, 0.5), 2.8)
+        _show_hint("Из спор Шуб-Ниггурат выходят её младенцы!", 2.6)
+
 ## Босс повержен: данж пройден, демон мёртв навсегда, жертвы оживают,
 ## из пепла — ЭПИЧЕСКОЕ случайное оружие (шаг 14), на месте босса
-## открывается лестница в замок.
+## открывается портал в замок, у боссов 1–3 — ключ следующего данжа.
 func _on_boss_defeated(boss: Dictionary) -> void:
     _boss_defeated_here = true
     # шаг 21: Ктулху уснул — небо возвращается, круг-предупреждение гаснет
@@ -2388,6 +2952,18 @@ func _on_boss_defeated(boss: Dictionary) -> void:
     _show_loot_popup(ItemDB.title(epic_id), ItemDB.icon(epic_id), "gold")
     Sfx.play("coin")
     _spell_poof(node.position + Vector2(0, -30), Color(1.0, 0.84, 0.2))
+    # Шаг 24 (п.1): КЛЮЧ следующего подземелья — на экран (иконка+текст).
+    var key_id := String(DungeonBestiary.dungeon_meta(_dungeon_id)
+        .get("boss_key", ""))
+    if not key_id.is_empty():
+        Game.add_item({"item_id": key_id, "title": ItemDB.title(key_id),
+            "quality": "gold"})
+        Sfx.play("coin")
+        var key_popup := create_tween()
+        key_popup.tween_interval(2.2)
+        key_popup.tween_callback(func() -> void:
+            _show_loot_popup(ItemDB.title(key_id), ItemDB.icon(key_id), "gold")
+            _show_hint(String(KEY_HINT) % ItemDB.title(key_id), 6.0))
     var tx := clampi(int(floor(node.position.x / 16.0)), 1, DungeonBestiary.MAP_W - 2)
     var ty := clampi(int(floor(node.position.y / 16.0)), 1, DungeonBestiary.MAP_H - 2)
     _place_exit(Vector2i(tx, ty))
@@ -2496,7 +3072,7 @@ func _kill_foe(foe: Dictionary) -> void:
         Color(0.6, 0.6, 0.66))
     _shake_camera(2.5, 0.22)
     Sfx.play("die")
-    # награда: золото растёт с глубиной, у элиты — тройная (ЗАГЛУШКА);
+    # награда: золото растёт с глубиной, у элиты — тройная;
     # иногда враг роняет зелье
     var reward := DungeonBestiary.foe_gold(def, _floor_num) \
         * int(foe.get("gold_mult", 1))
@@ -2838,6 +3414,9 @@ func _respawn_player() -> void:
 # ---------------------------------------------------------------- джойстик
 
 func _build_joystick() -> void:
+    # шаг 25: на ПК экранный джойстик не нужен — только сенсорные экраны
+    if not DisplayServer.is_touchscreen_available():
+        return
     var script: GDScript = load("res://scripts/ui/virtual_joystick.gd") as GDScript
     if script == null or not script.can_instantiate():
         push_warning("VirtualJoystick недоступен: только клавиатура")
@@ -2876,7 +3455,9 @@ func _build_hud() -> void:
     _hud_bar.add_child(bar_bg)
     var bar_top := 0.0
     var hero_panel := PanelContainer.new()
-    hero_panel.position = Vector2(BAR_HERO_POS.x, bar_top + BAR_HERO_POS.y)
+    # шаг 25: на ПК джойстика нет — панель героя у левого края консоли
+    var hero_x := BAR_HERO_POS.x if DisplayServer.is_touchscreen_available() else 8.0
+    hero_panel.position = Vector2(hero_x, bar_top + BAR_HERO_POS.y)
     var hero_style := UiStyle.flat_style(Color(0.11, 0.12, 0.19), Color(0.5, 0.42, 0.16))
     hero_style.content_margin_left = 6
     hero_style.content_margin_right = 10

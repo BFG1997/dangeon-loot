@@ -16,6 +16,14 @@
 ## считается от реального размера вьюпорта — даже на нестандартном экране
 ## панель не выйдет ни вверх, ни вниз. Листание реплик: E/F, Enter и клик
 ## по затемнению (удар ЛКМ в мире больше не листает диалог).
+## Шаг 24 (ИСПРАВЛЕНИЕ бага диалога в босс-комнатах): панель «расширялась
+## на всю высоту экрана и уходила за нижний край». Причины: (1) минимальная
+## высота замерялась ДО первой раскладки — у метки с автопереносом при
+## нулевой ширине она гигантская; (2) твин анимации твинил position.y,
+## и set_position запекал мусорную высоту в offset_bottom навсегда.
+## Теперь _fit_panel() сначала задаёт метке честную ширину текстовой
+## колонки, перезаписывает ОБА offsets (лечит испорченный низ), а появление
+## анимирует offset_top — панель при любом контенте стоит на своих якорях.
 class_name DialogueUI
 extends CanvasLayer
 
@@ -128,7 +136,7 @@ func _ready() -> void:
     vbox.add_child(bottom_row)
 
     _more_label = Label.new()
-    _more_label.text = "▼ тап / E"
+    _more_label.text = "▼ клик / E"
     _more_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
     _more_label.add_theme_font_size_override("font_size", 10)
     _more_label.add_theme_color_override("font_color", COLOR_GOLD)
@@ -161,13 +169,17 @@ func open(npc: Dictionary) -> void:
     # шаг 10: высота по контенту — до анимации появления, чтобы всплывание
     # ехало от уже правильной позиции
     _fit_panel()
-    # появление: панель всплывает, портрет слегка пружинит
+    # появление: панель всплывает, портрет слегка пружинит.
+    # Шаг 24: анимируем offset_top, а НЕ position — set_position у
+    # заякоренной панели пересчитывает offsets из текущего размера и
+    # запекал раздутую высоту в offset_bottom (баг босс-комнат).
     _panel.modulate.a = 0.0
-    _panel.position.y += 14
+    var base_top := _panel.offset_top
+    _panel.offset_top = base_top + 14.0
     var tw := create_tween()
     tw.set_parallel(true)
     tw.tween_property(_panel, "modulate:a", 1.0, 0.16)
-    tw.tween_property(_panel, "position:y", _panel.position.y - 14.0, 0.2) \
+    tw.tween_property(_panel, "offset_top", base_top, 0.2) \
         .set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
     _portrait.pivot_offset = _portrait.size / 2.0
     _portrait.scale = Vector2(0.7, 0.7)
@@ -195,9 +207,25 @@ func _fit_panel() -> void:
     if vp != null:
         view_h = vp.get_visible_rect().size.y
     var max_h := maxf(PANEL_MIN_H, minf(PANEL_MAX_H, view_h - bottom_reserve - 8.0))
+    # Шаг 24: у метки с автопереносом минимальная высота считается по её
+    # ТЕКУЩЕЙ ширине — до первой раскладки она нулевая, и замер давал
+    # гигантскую высоту (панель «на всю высоту экрана»). Ширина текстовой
+    # колонки известна из якорей панели: 340 px по якорям минус портрет
+    # (128 + рамки 6 + зазор 12) и минус отступы стиля панели.
+    if _text_label.size.x < 40.0:
+        var panel_w := _panel.size.x
+        if panel_w < 40.0:
+            var view_w := view_h
+            if vp != null:
+                view_w = vp.get_visible_rect().size.x
+            panel_w = maxf(200.0, view_w - 20.0)
+        _text_label.size.x = maxf(60.0, panel_w - 160.0)
     var min_h := _panel.get_combined_minimum_size().y
     var target := clampf(min_h + 2.0, PANEL_MIN_H, max_h)
+    # Шаг 24: перезаписываем ОБА offsets — низ всегда на bottom_reserve,
+    # даже если прежний offset_bottom был испорчен (баг босс-комнат).
     _panel.offset_top = -(bottom_reserve + target)
+    _panel.offset_bottom = -bottom_reserve
 
 func _process(delta: float) -> void:
     if not _active:

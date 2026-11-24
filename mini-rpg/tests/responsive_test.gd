@@ -22,7 +22,7 @@ func _ready() -> void:
             for i in 4:
                 scene._reveal_next_item()
             await get_tree().create_timer(0.6).timeout
-        for resolution in [Vector2i(720, 1280), Vector2i(1080, 2400), Vector2i(1536, 2048), Vector2i(1920, 1080), Vector2i(1280, 720)]:
+        for resolution in [Vector2i(1920, 1080), Vector2i(1600, 900), Vector2i(1366, 768), Vector2i(2560, 1440), Vector2i(3840, 2160)]:
             window.size = resolution
             for i in 3:
                 await get_tree().process_frame

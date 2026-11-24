@@ -24,14 +24,17 @@ Saves="*res://scripts/autoload/save_manager.gd"
 
 [display]
 
-window/size/viewport_width=720
-window/size/viewport_height=1280
-window/size/window_width_override=720
-window/size/window_height_override=1280
+; Шаг 25: игра переведена на ПК — базовое разрешение 1920x1080 (ландшафт).
+; Логическое разрешение 960x540 (stretch scale 2.0): пиксель-арт 16px читается
+; крупно, раскладка сцен адаптивная (от get_viewport_rect().size).
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/window_width_override=1920
+window/size/window_height_override=1080
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/stretch/scale=2.0
-window/handheld/orientation=6
+window/handheld/orientation=0
 
 [input]
 

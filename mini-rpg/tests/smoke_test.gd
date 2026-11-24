@@ -202,7 +202,7 @@ func _ready() -> void:
 
     # --- шаг 6: герой Маг — хп 30, мана 70, заклинание, напитки ---
     Game.new_run(1, "mage")
-    check("маг начал с 60 з. (ЗАГЛУШКА, задать автору)", Game.gold == 60 \
+    check("маг начал с 60 з.", Game.gold == 60 \
         and Game.hero_start_gold("mage") == 60)
     check("маг: хп 30/30 и мана 70/70 на старте", Game.hp == 30 and Game.mana == 70 \
         and Game.max_hp() == 30 and Game.max_mana() == 70 and Game.is_mage())
@@ -263,7 +263,7 @@ func _ready() -> void:
         and Game.inventory.size() == 1)
 
     # --- шаг 7: оружие в руках — удар рукой vs удар оружием ---
-    check("кулаки: удар рукой у всех (заглушка 5 урона)", not Game.has_weapon() \
+    check("кулаки: удар рукой у всех (5 урона, подтверждено)", not Game.has_weapon() \
         and Game.strike_damage() == Game.HAND_DAMAGE and Game.strike_title() == "Кулаки")
     Game.add_item({"item_id": "sword", "title": "Меч", "quality": "gray"})
     check("экипировка меча: 30 урона", Game.equip_weapon("sword") and Game.has_weapon() \
@@ -286,12 +286,12 @@ func _ready() -> void:
     # --- шаг 12: броня и одеяния — база предметов ---
     check("типы экипировки в ItemDB.EQUIP_TYPES", "weapon" in ItemDB.EQUIP_TYPES \
         and "armor" in ItemDB.EQUIP_TYPES and "robe" in ItemDB.EQUIP_TYPES)
-    check("броня Вираса: 40/90/180 з. и +10/+20/+35 ХП (ЗАГЛУШКИ)", \
+    check("броня Вираса: 40/90/180 з. и +10/+20/+35 ХП", \
         ItemDB.price("armor_leather") == 40 and ItemDB.price("armor_chain") == 90 \
         and ItemDB.price("armor_plate") == 180 \
         and ItemDB.hp_bonus("armor_leather") == 10 and ItemDB.hp_bonus("armor_chain") == 20 \
         and ItemDB.hp_bonus("armor_plate") == 35)
-    check("одеяния Зорана: +мана и немного ХП (ЗАГЛУШКИ)", \
+    check("одеяния Зорана: +мана и немного ХП", \
         ItemDB.price("robe_faded") == 35 and ItemDB.price("robe_stars") == 90 \
         and ItemDB.price("robe_void") == 170 \
         and ItemDB.mana_bonus("robe_faded") == 10 and ItemDB.hp_bonus("robe_faded") == 3 \
@@ -307,7 +307,7 @@ func _ready() -> void:
 
     # --- шаг 12: экипировка брони и одеяний ---
     Game.new_run(1, "warrior")
-    check("воин: базовый максимум 50 (ЗАГЛУШКА)", Game.max_hp() == 50)
+    check("воин: базовый максимум 50", Game.max_hp() == 50)
     Game.add_item({"item_id": "armor_plate", "title": "Латный доспех", "quality": "gray"})
     check("броня надета: максимум 50 -> 85", bool(Game.equip_armor("armor_plate").get("ok", false)) \
         and Game.max_hp() == 85 and Game.has_armor())

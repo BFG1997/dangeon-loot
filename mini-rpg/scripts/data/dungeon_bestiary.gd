@@ -30,7 +30,14 @@
 ## (колдун), Отродье звёзд и Шоггот. Босс 4-го этажа — Большой Ктулху
 ## (лист 72x96, как у прочих боссов). Арт — tools/gen_dungeon3.py,
 ## тайлы в свободных клетках атласа (ряды 6–7 и хвост ряда 5).
-## Все числа хп/урона/скоростей и награды — ЗАГЛУШКИ (утверждает автор).
+## Шаг 24: БАЛАНС ПЕРЕСОБРАН — хп/урон/награды данжей 1–3 выровнены
+## в плавную кривую (раньше скачки вида «паук 12 хп, потом 75»); данж 4
+## «Логово Древних» — космический хоррор: 5 видов тварей с щупальцами
+## (арт — tools/gen_dungeon4.py, тайлы в рядах 8–9 атласа) и босс
+## Шуб-Ниггурат (лист 96x128, x4 — стреляет спорами, зовёт полчища).
+## У боссов данжей 1–3 есть boss_key — ключ следующего подземелья
+## (в реестре DUNGEONS), падает с босса и показывается на экране.
+## Числа хп/урона/скоростей и награды подтверждены балансным проходом шага 25.
 class_name DungeonBestiary
 extends RefCounted
 
@@ -40,38 +47,40 @@ const SHEET_DIR := "res://assets/sprites/dungeon/"
 ## от него зависит, каких врагов какой этаж может заспавнить).
 ## ranged: true — колдун: держит дистанцию и швыряет болт (болт летит
 ## со скоростью bolt_speed на дистанцию bolt_range, перезарядка bolt_cd).
-## gold — награда за убийство (ЗАГЛУШКА); xp — опыт за победу (шаг 19).
+## gold — награда за убийство; xp — опыт за победу (шаг 19).
+## Шаг 24: баланс — каждый следующий вид заметно крепче предыдущего,
+## без «стен» на середине данжа. Награды растут вместе с силой.
 const FOES: Array[Dictionary] = [
-    {"id": "spider", "name": "Паук", "hp": 12, "damage": 4, "speed": 70.0,
+    {"id": "spider", "name": "Паук", "hp": 10, "damage": 3, "speed": 70.0,
         "sheet": SHEET_DIR + "spider.png", "ranged": false,
         "aggro": 110.0, "attack_range": 22.0, "attack_cd": 1.1,
         "gold": 3, "xp": 4, "bolt_color": [0.55, 0.85, 0.95]},
-    {"id": "snake", "name": "Змея", "hp": 16, "damage": 6, "speed": 85.0,
+    {"id": "snake", "name": "Змея", "hp": 14, "damage": 5, "speed": 85.0,
         "sheet": SHEET_DIR + "snake.png", "ranged": false,
         "aggro": 110.0, "attack_range": 22.0, "attack_cd": 1.0,
         "gold": 4, "xp": 6, "bolt_color": [0.5, 0.9, 0.55]},
-    {"id": "cosmic_spider", "name": "Космический паук", "hp": 26, "damage": 8,
+    {"id": "cosmic_spider", "name": "Космический паук", "hp": 22, "damage": 7,
         "speed": 80.0, "sheet": SHEET_DIR + "cosmic_spider.png", "ranged": false,
         "aggro": 120.0, "attack_range": 24.0, "attack_cd": 1.0,
         "gold": 6, "xp": 10, "bolt_color": [0.72, 0.55, 0.95]},
-    {"id": "undead_bum", "name": "Мертвец бомж", "hp": 34, "damage": 9,
+    {"id": "undead_bum", "name": "Мертвец бомж", "hp": 30, "damage": 8,
         "speed": 52.0, "sheet": SHEET_DIR + "undead_bum.png", "ranged": false,
         "aggro": 120.0, "attack_range": 24.0, "attack_cd": 1.2,
         "gold": 8, "xp": 14, "bolt_color": [0.6, 0.7, 0.5]},
-    {"id": "undead_knight", "name": "Мертвец рыцарь", "hp": 55, "damage": 13,
+    {"id": "undead_knight", "name": "Мертвец рыцарь", "hp": 48, "damage": 11,
         "speed": 58.0, "sheet": SHEET_DIR + "undead_knight.png", "ranged": false,
         "aggro": 130.0, "attack_range": 26.0, "attack_cd": 1.2,
         "gold": 12, "xp": 22, "bolt_color": [0.75, 0.75, 0.8]},
-    {"id": "undead_sorcerer", "name": "Мертвец колдун", "hp": 40, "damage": 11,
+    {"id": "undead_sorcerer", "name": "Мертвец колдун", "hp": 38, "damage": 9,
         "speed": 44.0, "sheet": SHEET_DIR + "undead_sorcerer.png", "ranged": true,
         "aggro": 150.0, "attack_range": 120.0, "attack_cd": 1.8,
         "gold": 14, "xp": 20, "bolt_color": [0.45, 0.8, 0.6], "bolt_speed": 130.0,
         "bolt_range_px": 190.0, "keep_distance": 90.0},
-    {"id": "demon_swordsman", "name": "Демон мечник", "hp": 75, "damage": 17,
+    {"id": "demon_swordsman", "name": "Демон мечник", "hp": 64, "damage": 14,
         "speed": 72.0, "sheet": SHEET_DIR + "demon_swordsman.png", "ranged": false,
         "aggro": 130.0, "attack_range": 26.0, "attack_cd": 1.0,
         "gold": 18, "xp": 30, "bolt_color": [0.95, 0.5, 0.3]},
-    {"id": "demon_sorcerer", "name": "Демон колдун", "hp": 60, "damage": 15,
+    {"id": "demon_sorcerer", "name": "Демон колдун", "hp": 52, "damage": 12,
         "speed": 62.0, "sheet": SHEET_DIR + "demon_sorcerer.png", "ranged": true,
         "aggro": 150.0, "attack_range": 120.0, "attack_cd": 1.6,
         "gold": 22, "xp": 26, "bolt_color": [0.95, 0.45, 0.55], "bolt_speed": 150.0,
@@ -81,7 +90,7 @@ const FOES: Array[Dictionary] = [
 ## Обязательный босс последнего этажа: тот самый Таинственный демон,
 ## что появлялся на юге карты. Если мы видели его — он узнаёт героя,
 ## говорит об этом, и начинается битва. Лист 72x96 — он втрое крупнее
-## обычных врагов (как у демона с юга мира). Числа — ЗАГЛУШКИ.
+## обычных врагов (как у демона с юга мира). Числа подтверждены (шаг 25).
 const BOSS: Dictionary = {
     "id": "boss_demon", "name": "Таинственный демон", "hp": 300, "damage": 12,
     "speed": 58.0, "sheet": "res://assets/sprites/chars/demon.png",
@@ -104,35 +113,38 @@ const BOSS: Dictionary = {
 }
 
 ## Противники данжа 2 «Скит Пустоты» (шаг 16), по возрастанию сложности.
-## Все числа — ЗАГЛУШКИ (утверждает автор). Чтец и старейшина — колдуны:
+## Числа подтверждены (шаг 25). Чтец и старейшина — колдуны:
 ## держат дистанцию и швыряют болты Пустоты (см. ИИ "ranged" в dungeon.gd).
+## Шаг 24: баланс культистов — послушник живёт чуть дольше (шаг 22
+## сбрасывал его в 20 хп: умирал от одного взгляда), фанатик бьёт больно,
+## тяжеловес — подвижная стена. Скорости по-прежнему ниже 95 (кайт).
 const FOES_2: Array[Dictionary] = [
-    {"id": "cultist_acolyte", "name": "Культист-послушник", "hp": 20,
-        "damage": 8, "speed": 75.0,
+    {"id": "cultist_acolyte", "name": "Культист-послушник", "hp": 28,
+        "damage": 9, "speed": 75.0,
         "sheet": SHEET_DIR + "cultist_acolyte.png", "ranged": false,
         "aggro": 120.0, "attack_range": 22.0, "attack_cd": 1.1,
-        "gold": 6, "xp": 8, "bolt_color": [0.62, 0.52, 0.9]},
-    {"id": "cultist_fanatic", "name": "Культист-фанатик", "hp": 16,
-        "damage": 11, "speed": 88.0,   # шаг 17: было 95 — как у героя, кайт невозможен
+        "gold": 7, "xp": 9, "bolt_color": [0.62, 0.52, 0.9]},
+    {"id": "cultist_fanatic", "name": "Культист-фанатик", "hp": 22,
+        "damage": 13, "speed": 88.0,   # шаг 17: было 95 — как у героя, кайт невозможен
         "sheet": SHEET_DIR + "cultist_fanatic.png", "ranged": false,
         "aggro": 140.0, "attack_range": 22.0, "attack_cd": 0.9,
-        "gold": 8, "xp": 10, "bolt_color": [0.9, 0.4, 0.35]},
-    {"id": "cultist_chanter", "name": "Культист-чтец", "hp": 34,
-        "damage": 10, "speed": 48.0,
+        "gold": 9, "xp": 11, "bolt_color": [0.9, 0.4, 0.35]},
+    {"id": "cultist_chanter", "name": "Культист-чтец", "hp": 42,
+        "damage": 12, "speed": 48.0,
         "sheet": SHEET_DIR + "cultist_chanter.png", "ranged": true,
         "aggro": 150.0, "attack_range": 120.0, "attack_cd": 1.7,
-        "gold": 13, "xp": 16, "bolt_color": [0.62, 0.45, 0.92], "bolt_speed": 140.0,
+        "gold": 14, "xp": 17, "bolt_color": [0.62, 0.45, 0.92], "bolt_speed": 140.0,
         "bolt_range_px": 200.0, "keep_distance": 95.0},
-    {"id": "cultist_guardian", "name": "Культист-тяжеловес", "hp": 68,
-        "damage": 13, "speed": 45.0,
+    {"id": "cultist_guardian", "name": "Культист-тяжеловес", "hp": 78,
+        "damage": 15, "speed": 45.0,
         "sheet": SHEET_DIR + "cultist_guardian.png", "ranged": false,
         "aggro": 110.0, "attack_range": 26.0, "attack_cd": 1.4,
-        "gold": 14, "xp": 24, "bolt_color": [0.78, 0.66, 0.4]},
-    {"id": "cultist_elder", "name": "Культист-старейшина", "hp": 50,
-        "damage": 13, "speed": 52.0,
+        "gold": 16, "xp": 26, "bolt_color": [0.78, 0.66, 0.4]},
+    {"id": "cultist_elder", "name": "Культист-старейшина", "hp": 58,
+        "damage": 14, "speed": 52.0,
         "sheet": SHEET_DIR + "cultist_elder.png", "ranged": true,
         "aggro": 150.0, "attack_range": 130.0, "attack_cd": 1.5,
-        "gold": 18, "xp": 22, "bolt_color": [0.72, 0.55, 0.95], "bolt_speed": 160.0,
+        "gold": 20, "xp": 24, "bolt_color": [0.72, 0.55, 0.95], "bolt_speed": 160.0,
         "bolt_range_px": 230.0, "keep_distance": 105.0},
 ]
 
@@ -140,7 +152,7 @@ const FOES_2: Array[Dictionary] = [
 ## Пустоты, глава скита за второй дверью. Лист 72x96 — втрое крупнее
 ## обычных врагов (как у демона данжа 1). Героя никогда не встречал,
 ## но Пустота шептала ему о герое — потому реплики одни (lines_new).
-## Числа — ЗАГЛУШКИ. knows_hero=false: demon_seen на него не влияет.
+## Числа подтверждены (шаг 25). knows_hero=false: demon_seen на него не влияет.
 const BOSS_2: Dictionary = {
     "id": "boss_cultist_overlord", "name": "Великий культист",
     "hp": 420, "damage": 15, "speed": 55.0,
@@ -159,38 +171,41 @@ const BOSS_2: Dictionary = {
 }
 
 ## Противники данжа 3 «Глубины Р'льеха» (шаг 20), по возрастанию сложности.
-## Все числа — ЗАГЛУШКИ (утверждает автор). Пожиратель снов — колдун.
+## Числа подтверждены (шаг 25). Пожиратель снов — колдун.
 ## Скорости ниже 95 (кайт героя, как в данжах 1–2).
+## Шаг 24: баланс глубин — Р'льех ощутимо крепче скита: Глубинный
+## держит удар, Шоггот почти пробивает героя с двух рук. Награды
+## соответствуют риску.
 const FOES_3: Array[Dictionary] = [
-    {"id": "deep_one", "name": "Глубинный", "hp": 30, "damage": 10,
+    {"id": "deep_one", "name": "Глубинный", "hp": 44, "damage": 12,
         "speed": 78.0, "sheet": SHEET_DIR + "deep_one.png", "ranged": false,
         "aggro": 130.0, "attack_range": 24.0, "attack_cd": 1.0,
-        "gold": 10, "xp": 12, "bolt_color": [0.5, 0.85, 0.6]},
-    {"id": "tentacle_crawler", "name": "Ползун щупалец", "hp": 24,
-        "damage": 9, "speed": 86.0,
+        "gold": 12, "xp": 14, "bolt_color": [0.5, 0.85, 0.6]},
+    {"id": "tentacle_crawler", "name": "Ползун щупалец", "hp": 36,
+        "damage": 11, "speed": 86.0,
         "sheet": SHEET_DIR + "tentacle_crawler.png", "ranged": false,
         "aggro": 140.0, "attack_range": 22.0, "attack_cd": 0.9,
-        "gold": 11, "xp": 14, "bolt_color": [0.75, 0.55, 0.9]},
-    {"id": "dream_eater", "name": "Пожиратель снов", "hp": 44, "damage": 12,
+        "gold": 13, "xp": 15, "bolt_color": [0.75, 0.55, 0.9]},
+    {"id": "dream_eater", "name": "Пожиратель снов", "hp": 58, "damage": 13,
         "speed": 48.0, "sheet": SHEET_DIR + "dream_eater.png", "ranged": true,
         "aggro": 155.0, "attack_range": 125.0, "attack_cd": 1.6,
-        "gold": 16, "xp": 20, "bolt_color": [0.6, 0.9, 0.65],
+        "gold": 18, "xp": 22, "bolt_color": [0.6, 0.9, 0.65],
         "bolt_speed": 150.0, "bolt_range_px": 220.0, "keep_distance": 100.0},
-    {"id": "star_spawn", "name": "Отродье звёзд", "hp": 60, "damage": 15,
+    {"id": "star_spawn", "name": "Отродье звёзд", "hp": 78, "damage": 16,
         "speed": 82.0, "sheet": SHEET_DIR + "star_spawn.png", "ranged": false,
         "aggro": 140.0, "attack_range": 26.0, "attack_cd": 1.0,
-        "gold": 20, "xp": 26, "bolt_color": [0.5, 0.9, 0.85]},
-    {"id": "shoggoth", "name": "Шоггот", "hp": 95, "damage": 18, "speed": 42.0,
+        "gold": 22, "xp": 28, "bolt_color": [0.5, 0.9, 0.85]},
+    {"id": "shoggoth", "name": "Шоггот", "hp": 125, "damage": 20, "speed": 42.0,
         "sheet": SHEET_DIR + "shoggoth.png", "ranged": false,
         "aggro": 110.0, "attack_range": 26.0, "attack_cd": 1.3,
-        "gold": 24, "xp": 32, "bolt_color": [0.55, 0.8, 0.5]},
+        "gold": 28, "xp": 36, "bolt_color": [0.55, 0.8, 0.5]},
 ]
 
 ## Босс данжа 3 (шаг 20, устрашён в шаге 21): Большой Ктулху — спящий
 ## под троном Р'льеха. Лист 96x128 — x4, Ктулху нависает над героем как
 ## башня тьмы (перерисован tools/gen_cthulhu_step21.py: крылья во всю
 ## ширь, борода щупалец, угли-глаза). Героя не знал никогда; знает все
-## имена, включая его. Числа — ЗАГЛУШКИ.
+## имена, включая его. Числа подтверждены (шаг 25).
 const BOSS_3: Dictionary = {
     "id": "boss_cthulhu", "name": "Большой Ктулху", "hp": 850, "damage": 26,
     "speed": 54.0, "sheet": SHEET_DIR + "boss_cthulhu.png",
@@ -204,6 +219,62 @@ const BOSS_3: Dictionary = {
         "Морг. Ты моргнул — а я видел каждый твой день наперёд. Твой приход сюда — моя скука, развеянная на один выдох.",
         "Культисты пахли страхом. Демон — пеплом. Ты пахнешь сном: я буду есть тебя в каждом сне, что тебе остался.",
         "Р'льех поднимается, когда кричат звёзды. Умоляй на любом языке — я знаю все. Языки умирают последними.",
+    ],
+}
+
+## Противники данжа 4 «Логово Древних» (шаг 24), по возрастанию сложности.
+## Арт — tools/gen_dungeon4.py (твари с щупальцами, космический хоррор).
+## Жрец гулей и Древняя тварь — колдуны (споры). Числа подтверждены (шаг 25).
+## Скорости ниже 95 (кайт героя, как в данжах 1–3).
+const FOES_4: Array[Dictionary] = [
+    {"id": "night_gaunt", "name": "Ночной гонт", "hp": 48,
+        "damage": 12, "speed": 90.0,
+        "sheet": SHEET_DIR + "night_gaunt.png", "ranged": false,
+        "aggro": 140.0, "attack_range": 24.0, "attack_cd": 0.9,
+        "gold": 26, "xp": 34, "bolt_color": [0.6, 0.9, 0.85]},
+    {"id": "moon_beast", "name": "Лунный зверь", "hp": 62,
+        "damage": 14, "speed": 76.0,
+        "sheet": SHEET_DIR + "moon_beast.png", "ranged": false,
+        "aggro": 130.0, "attack_range": 26.0, "attack_cd": 1.1,
+        "gold": 30, "xp": 38, "bolt_color": [0.95, 0.6, 0.5]},
+    {"id": "ghoul_priest", "name": "Жрец гулей", "hp": 70,
+        "damage": 13, "speed": 46.0,
+        "sheet": SHEET_DIR + "ghoul_priest.png", "ranged": true,
+        "aggro": 155.0, "attack_range": 130.0, "attack_cd": 1.5,
+        "gold": 34, "xp": 36, "bolt_color": [0.7, 0.9, 0.55],
+        "bolt_speed": 160.0, "bolt_range_px": 240.0, "keep_distance": 105.0},
+    {"id": "elder_thing", "name": "Древняя тварь", "hp": 90,
+        "damage": 16, "speed": 40.0,
+        "sheet": SHEET_DIR + "elder_thing.png", "ranged": true,
+        "aggro": 150.0, "attack_range": 135.0, "attack_cd": 1.6,
+        "gold": 40, "xp": 44, "bolt_color": [0.5, 0.9, 0.8],
+        "bolt_speed": 170.0, "bolt_range_px": 250.0, "keep_distance": 110.0},
+    {"id": "tentacle_abomination", "name": "Абоминация щупалец", "hp": 140,
+        "damage": 20, "speed": 38.0,
+        "sheet": SHEET_DIR + "tentacle_abomination.png", "ranged": false,
+        "aggro": 110.0, "attack_range": 28.0, "attack_cd": 1.3,
+        "gold": 46, "xp": 52, "bolt_color": [0.8, 0.6, 0.9]},
+]
+
+## Босс данжа 4 (шаг 24): Шуб-Ниггурат, Чёрная Коза Тысячи Младенцев —
+## Мать монстров. Лист 96x128 (x4, как у Ктулху). В бою стреляет веером
+## спор, на порогах ХП зовёт полчища своих детенышей (см. dungeon.gd).
+## Её победа запускает ФИНАЛ: в замке умирают все NPC, кроме Лир.
+## Числа подтверждены (шаг 25). knows_hero=false: она не говорила с героем — она
+## его растила.
+const BOSS_4: Dictionary = {
+    "id": "boss_shub", "name": "Шуб-Ниггурат", "hp": 1200, "damage": 24,
+    "speed": 50.0, "sheet": SHEET_DIR + "boss_shub.png",
+    "portrait": "res://assets/sprites/portraits/boss_shub.png",
+    "scale": 4, "aggro": 300.0, "attack_range": 46.0, "attack_cd": 1.2,
+    "gold": 900, "xp": 800,
+    "role_seen": "Мать монстров",
+    "role_new": "Мать монстров",
+    "lines_seen": [],
+    "lines_new": [
+        "Каждый тебе убитый кормил не только демона. Каждый тебе этаж полил мои корни. Ты растил меня, смертный, — и вот я выросла.",
+        "Культисты пели мне. Глубинные спали со мной. Ктулху мне снился. Тебя я не видела лишь потому, что ты был занят: ты поднимал мой сад по стебельку.",
+        "Мои младенцы уже идут. Стань молоком — или моим последним всадником. Выбери, чем ты пахнешь для них.",
     ],
 }
 
@@ -348,7 +419,7 @@ const THEMES_3: Array[Dictionary] = [
         "webs": 0, "bones": 10, "blood": 22, "glow_n": 12,
         "pool": ["tentacle_crawler", "star_spawn", "shoggoth"],
         "foes_min": 9, "foes_max": 12,
-        "hint": "Гнездо щупалец. Пол дышит, стены сократаются, и по потолку течёт что-то живое. Отродья звёзд стерегут кладку.",
+        "hint": "Гнездо щупалец. Пол дышит, стены сокращаются, и по потолку течёт что-то живое. Отродья звёзд стерегут кладку.",
     },
     {
         "id": "rlyeh_throne", "name": "Трон Р'льеха",
@@ -363,6 +434,56 @@ const THEMES_3: Array[Dictionary] = [
     },
 ]
 
+## Темы этажей данжа 4 «Логово Древних» (шаг 24). Тайлы — ряды 8–9
+## атласа (см. tools/gen_dungeon4.py): стены (0,8)/(5,8)/(1,9)/(5,9),
+## полы (2,8)..(7,9), свечение (4,8)/(0,9)/(4,9)/(7,5).
+const THEMES_4: Array[Dictionary] = [
+    {
+        "id": "blasphemous_grove", "name": "Богохульная роща",
+        "wall": Vector2i(0, 8),
+        "floors": [Vector2i(2, 8), Vector2i(3, 8), Vector2i(0, 1)],
+        "glow": Vector2i(4, 8),
+        "canvas": Color(0.76, 0.84, 0.76),
+        "webs": 4, "bones": 6, "blood": 8, "glow_n": 16,
+        "pool": ["night_gaunt", "moon_beast"],
+        "foes_min": 7, "foes_max": 9,
+        "hint": "Богохульная роща. Здесь растут глаза вместо цветов, и каждый смотрит только на тебя. Гонты сторожат аллеи.",
+    },
+    {
+        "id": "star_vaults", "name": "Звёздные чертоги",
+        "wall": Vector2i(5, 8),
+        "floors": [Vector2i(6, 8), Vector2i(7, 8), Vector2i(0, 1)],
+        "glow": Vector2i(0, 9),
+        "canvas": Color(0.78, 0.8, 0.9),
+        "webs": 0, "bones": 8, "blood": 6, "glow_n": 18,
+        "pool": ["moon_beast", "ghoul_priest"],
+        "foes_min": 8, "foes_max": 10,
+        "hint": "Звёздные чертоги. Звёзды вморожены в камень заживо — они ещё светятся. Жрецы гулей собирают их свет в споры.",
+    },
+    {
+        "id": "shub_garden", "name": "Сад Шуб-Ниггурат",
+        "wall": Vector2i(1, 9),
+        "floors": [Vector2i(2, 9), Vector2i(3, 9), Vector2i(0, 1)],
+        "glow": Vector2i(4, 9),
+        "canvas": Color(0.82, 0.8, 0.76),
+        "webs": 0, "bones": 10, "blood": 20, "glow_n": 14,
+        "pool": ["ghoul_priest", "elder_thing", "tentacle_abomination"],
+        "foes_min": 9, "foes_max": 12,
+        "hint": "Сад Шуб-Ниггурат. Молочные споры светятся в темноте, и по ним ходят её дети. Не наступай на грядки: они наступят в ответ.",
+    },
+    {
+        "id": "black_altar", "name": "Чёрный алтарь",
+        "wall": Vector2i(5, 9),
+        "floors": [Vector2i(6, 9), Vector2i(7, 9), Vector2i(0, 1)],
+        "glow": Vector2i(7, 5),
+        "canvas": Color(0.74, 0.72, 0.82),
+        "webs": 0, "bones": 24, "blood": 18, "glow_n": 16,
+        "pool": ["elder_thing", "tentacle_abomination", "night_gaunt"],
+        "foes_min": 10, "foes_max": 13,
+        "hint": "Чёрный алтарь. Кости вмурованы в мрамор заживо. На жертвеннике ждёт Коза Тысячи Младенцев — и её вымя полно.",
+    },
+]
+
 ## Реестр подземелий (шаг 16): имя для HUD и реплики-подсказки этажей/босса.
 const DUNGEONS: Array[Dictionary] = [
     {
@@ -373,6 +494,8 @@ const DUNGEONS: Array[Dictionary] = [
         "boss_hostile_hint": "Демон бросается в бой! Ни лавки, ни милосердия — только когти и тьма.",
         "boss_defeated_hint": "Демон повержен! Убитые тобой жители вернулись в замок и ничего не помнят. Демон больше не вернётся — ни сюда, ни к краю мира.",
         "boss_epic_hint": "Среди пепла демона осталось оружие — %s. Эпическая добыча, она твоя.",
+        ## Шаг 24: босс отдаёт ключ следующего подземелья (выводится на экран).
+        "boss_key": "key_skit",
     },
     {
         "id": "dungeon_2", "name": "Скит Пустоты",
@@ -382,6 +505,8 @@ const DUNGEONS: Array[Dictionary] = [
         "boss_hostile_hint": "Великий культист начинает обряд! Щупальца Пустоты тянутся к тебе.",
         "boss_defeated_hint": "Верховный жрец повержен! Культ обезглавлен, скит замолчал. Пустота запомнила твой клинок — но подождёт.",
         "boss_epic_hint": "Среди пепла жреца осталось оружие — %s. Эпическая добыча культа, она твоя.",
+        ## Шаг 24: босс отдаёт ключ следующего подземелья (выводится на экран).
+        "boss_key": "key_depths",
     },
     {
         "id": "dungeon_3", "name": "Глубины Р'льеха",
@@ -398,6 +523,26 @@ const DUNGEONS: Array[Dictionary] = [
             "Шёпот Р'льеха: «Смотри мне в глаза. Они — двери.»",
             "Шёпот Р'льеха: «Глубина дышит тобой и не замечает.»",
         ],
+        ## Шаг 24: босс отдаёт ключ следующего подземелья (выводится на экран).
+        "boss_key": "key_ancients",
+    },
+    {
+        "id": "dungeon_4", "name": "Логово Древних",
+        "intro_hint": "Логово Древних. За четвёртой дверью — их сад: чёрный базальт, молочные споры и твари, у которых больше щупалец, чем мыслей. Четыре этажа вниз.",
+        "boss_floor_hint": "Уровень 4 из 4. Споры стелются к жертвеннику. Шуб-Ниггурат ждёт своих младенцев.",
+        "boss_floor_done_hint": "Уровень 4 из 4. Жертвенник пуст: Коза рассыпалась спорами. Что-то изменилось в замке наверху...",
+        "boss_hostile_hint": "Шуб-Ниггурат выступила из спор! Её младенцы уже бегут к тебе со всех этажей.",
+        "boss_defeated_hint": "Шуб-Ниггурат рассыпалась молочными спорами. Но замок наверху замолчал — и в этой тишине чей-то смех звучит победой.",
+        "boss_epic_hint": "В спорах Матери осталось оружие — %s. Эпическая добыча Древних, она твоя.",
+        ## Шаг 24: шёпот Козни во время битвы.
+        "boss_whispers": [
+            "Шёпот Козни: «Мои младенцы пьют твои шаги с первого этажа.»",
+            "Шёпот Козни: «Ты выкормил меня корнями своих побед.»",
+            "Шёпот Козни: «Стой спокойно. Молоко не сопротивляется.»",
+            "Шёпот Козни: «Наверху она ждёт. Она всегда ждала.»",
+        ],
+        ## У финального босса ключа нет: после его победы открывается ФИНАЛ.
+        "boss_key": "",
     },
 ]
 
@@ -418,6 +563,8 @@ static func boss_for(dungeon_id: String) -> Dictionary:
         return BOSS_2
     if dungeon_id == "dungeon_3":
         return BOSS_3
+    if dungeon_id == "dungeon_4":
+        return BOSS_4
     return BOSS
 
 ## Тема этажа (с защитой от неверных номеров при загрузке старых сейвов).
@@ -427,15 +574,17 @@ static func theme_for_floor(floor_num: int, dungeon_id: String = "dungeon_1") ->
         themes = THEMES_2
     elif dungeon_id == "dungeon_3":
         themes = THEMES_3
+    elif dungeon_id == "dungeon_4":
+        themes = THEMES_4
     return themes[clampi(floor_num - 1, 0, themes.size() - 1)]
 
-## Награда за врага: золото ЗАГЛУШКА — растёт с глубиной этажа.
+## Награда за врага: золото растёт с глубиной этажа (подтверждено, шаг 25).
 static func foe_gold(def: Dictionary, floor_num: int) -> int:
     return int(def.get("gold", 3)) + floor_num * 3
 
 ## Определение врага по id: ищем в обоих бестиариях (пустой — не найден).
 static func foe_def(foe_id: String) -> Dictionary:
-    for source: Array in [FOES, FOES_2, FOES_3]:
+    for source: Array in [FOES, FOES_2, FOES_3, FOES_4]:
         for def in source:
             if String(def.get("id", "")) == foe_id:
                 return def
@@ -1021,13 +1170,19 @@ static func _pick_prop_tiles(grid: Array[String], rooms: Array[Rect2i],
     # сокровищница: два кристалла по углам (фиолетовые — на 2-м этаже)
     if vault.size.x > 0:
         var crystal := "crystal" if floor_num != 2 else "crystal_violet"
-        var offs: Array[Vector2i] = [Vector2i(2, 1), Vector2i(-2, -2)]
+        # Шаг 24: кристалл сокровищницы — ГАРАНТИРОВАННЫЙ интерактив:
+        # жёсткое «минимум 3 тайла от всего» иногда оставляло этаж вовсе
+        # без кристалла; берём первую свободную ТОЧНУЮ клетку
+        var offs: Array[Vector2i] = [Vector2i(2, 1), Vector2i(-2, -2),
+            Vector2i(1, -1), Vector2i(-1, 2), Vector2i(0, 1)]
         for off in offs:
             var ct: Vector2i = _room_center(vault) + off
-            if _open_floor(grid, ct) and not reserved.has(ct) \
-                    and _far_enough(grid, taken, ct):
-                props.append({"tile": ct, "kind": crystal})
-                taken.append(ct)
+            if not _open_floor(grid, ct) or reserved.has(ct) \
+                    or taken.has(ct):
+                continue
+            props.append({"tile": ct, "kind": crystal})
+            taken.append(ct)
+            break
     # рассыпанный реквизит по комнатам (кроме стартовой)
     var kinds: Array = ["barrel", "crate", "sacks"]
     if floor_num == 2:

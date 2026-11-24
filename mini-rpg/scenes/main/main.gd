@@ -173,13 +173,13 @@ func _make_menu_button(item: Dictionary) -> Button:
 func _update_hint() -> void:
     match revealed_count:
         0:
-            hint_label.text = "Тапни по сундуку!"
+            hint_label.text = "Кликни по сундуку!"
         1:
-            hint_label.text = "Тапни ещё — будут настройки"
+            hint_label.text = "Кликни ещё — будут настройки"
         2:
             hint_label.text = "Ещё раз — авторы!"
         3:
-            hint_label.text = "Последний тап — бонус!"
+            hint_label.text = "Последний клик — бонус!"
         _:
             hint_label.text = "Приятной игры!"
 

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://shot24step024"]
+
+[ext_resource type="Script" path="res://tests/shot_step24.gd" id="1"]
+
+[node name="ShotStep24" type="Node"]
+script = ExtResource("1")

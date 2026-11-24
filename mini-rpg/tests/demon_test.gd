@@ -65,7 +65,7 @@ func _ready() -> void:
     var demon := find_npc(world, "demon")
     check("демон появился после первого убийства", not demon.is_empty())
     check("демон втрое крупнее обычного NPC", int(demon["data"].get("scale", 1)) == 3 \
-        and int(demon["max_hp"]) == 200)
+        and int(demon["max_hp"]) == 260)
     check("демон стоит у самого края улицы", int((demon["tile"] as Vector2).y) \
         >= WorldMap.RAILING_ROW - 3)
     check("товары Глота переехали к демону", Game.demon_goods() \
@@ -179,8 +179,8 @@ func _ready() -> void:
         and not Game.demon_enraged)
     world._strike_cd = 0.0
     world._strike()
-    check("третий удар: демон в ярости и жив (200-90=110)", Game.demon_hits == 3 \
-        and Game.demon_enraged and not bool(demon["dead"]) and int(demon["hp"]) == 110)
+    check("третий удар: демон в ярости и жив (260-90=170)", Game.demon_hits == 3 \
+        and Game.demon_enraged and not bool(demon["dead"]) and int(demon["hp"]) == 170)
     await get_tree().process_frame
     world.npc_say("demon")
     await get_tree().process_frame
@@ -228,8 +228,8 @@ func _ready() -> void:
     world._player_sprite.flip_h = false
     world._strike_cd = 0.0
     world._strike()
-    check("первый удар моргенштерном: 110 -> 10", not bool(demon["dead"]) \
-        and int(demon["hp"]) == 10)
+    check("первый удар моргенштерном: 170 -> 70", not bool(demon["dead"]) \
+        and int(demon["hp"]) == 70)
     world._strike_cd = 0.0
     world._strike()
     # Демон мёртв в мире, но в списке убитых его НЕТ: defeat_demon_permanently()
@@ -244,7 +244,7 @@ func _ready() -> void:
     check("жертвы забыты: список убитых пуст", Game.dead_npcs.is_empty())
     check("скидка сброшена (жертв больше нет)", Game.demon_discount_pct() == 0)
     check("товаров у демона больше нет", Game.demon_goods().is_empty())
-    check("сейв v7 хранит demon_defeated", int(Game.to_save_data().get("v", 0)) == 7 \
+    check("сейв v8 хранит demon_defeated (шаг 24)", int(Game.to_save_data().get("v", 0)) == 8 \
         and bool(Game.to_save_data().get("demon_defeated", false)))
     glot = find_npc(world, "glot")
     check("Глот ожил", not bool(glot["dead"]) and int(glot["hp"]) == 50)

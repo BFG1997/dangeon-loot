@@ -270,7 +270,7 @@ func _ready() -> void:
 
     # --- сейв v7: demon_defeated, уровень и опыт переживают загрузку ---
     var data: Dictionary = Game.to_save_data()
-    check("сейв v7 с demon_defeated, уровнем и опытом", int(data.get("v", 0)) == 7 \
+    check("сейв v8 с demon_defeated, уровнем и опытом (шаг 24)", int(data.get("v", 0)) == 8 \
         and bool(data.get("demon_defeated", false)) \
         and data.has("level") and data.has("xp"))
     Game.new_run(2, "warrior")
@@ -288,23 +288,23 @@ func _ready() -> void:
     check("порог опыта: 45 за 1-й уровень", Game.xp_needed() == 45)
     Game.add_xp(45)
     check("45 опыта = уровень 2", Game.level == 2 and Game.xp == 0)
-    check("уровень 2: ХП и урон кулаков вдвое", \
-        Game.max_hp() == 100 and Game.strike_damage() == 10)
+    check("уровень 2: ХП и урон кулаков +35% (шаг 25)", \
+        Game.max_hp() == 68 and Game.strike_damage() == 7)
     check("порог опыта за 2-й уровень — 180", Game.xp_needed() == 180)
     Game.add_xp(60)
     check("лишний опыт копится до следующего порога", \
         Game.level == 2 and Game.xp == 60)
     Game.add_xp(120)   # 60 + 120 = 180 ровно
-    check("уровень 3: ХП выросли вчетверо (задано автором)", \
-        Game.level == 3 and Game.max_hp() == 200)
+    check("уровень 3: ХП выросли на 70% (шаг 25)", \
+        Game.level == 3 and Game.max_hp() == 85)
     Game.add_xp(100)   # меньше порога 405 для 3-го уровня
     check("уровень 4 не наступает раньше порога", \
         Game.level == 3 and Game.xp == 100)
     # урон приёмов растёт уровнем: варвар на 3-м — топор 100 -> 400
     Game.new_run(1, "barbarian")
     Game.add_xp(45 + 180)
-    check("урон топора растёт с уровнем (400 на 3-м)", \
-        Game.level == 3 and int(Game.ability_info("q")["damage"]) == 400)
+    check("урон топора растёт с уровнем (170 на 3-м, шаг 25)", \
+        Game.level == 3 and int(Game.ability_info("q")["damage"]) == 170)
     # шаг 22: экипировки ВТРОЕ больше — сталь 18, магия 18, уников-оружия 3,
     # броня 9, одеяния 9; все иконки существуют
     var weapon_count := 0
@@ -350,7 +350,7 @@ func _ready() -> void:
     # у всех врагов и боссов — награда опытом
     var foe_xp_ok := true
     for source: Array in [DungeonBestiary.FOES, DungeonBestiary.FOES_2,
-            DungeonBestiary.FOES_3]:
+            DungeonBestiary.FOES_3, DungeonBestiary.FOES_4]:
         for def: Dictionary in source:
             if int(def.get("xp", 0)) <= 0:
                 foe_xp_ok = false
@@ -358,7 +358,45 @@ func _ready() -> void:
     check("у боссов есть награда опытом", \
         int(DungeonBestiary.BOSS.get("xp", 0)) == 200 \
         and int(DungeonBestiary.BOSS_2.get("xp", 0)) == 250 \
-        and int(DungeonBestiary.BOSS_3.get("xp", 0)) == 500)
+        and int(DungeonBestiary.BOSS_3.get("xp", 0)) == 500 \
+        and int(DungeonBestiary.BOSS_4.get("xp", 0)) == 800)
+    # --- шаг 24: данж 4 в бестиарии ---
+    check("5 видов Древних в бестиарии (шаг 24)", \
+        DungeonBestiary.foe_def("night_gaunt").size() > 0 \
+        and DungeonBestiary.foe_def("moon_beast").size() > 0 \
+        and DungeonBestiary.foe_def("ghoul_priest").size() > 0 \
+        and DungeonBestiary.foe_def("elder_thing").size() > 0 \
+        and DungeonBestiary.foe_def("tentacle_abomination").size() > 0)
+    var d4_sheets_ok := true
+    for fid4 in ["night_gaunt", "moon_beast", "ghoul_priest", "elder_thing",
+            "tentacle_abomination"]:
+        if not ResourceLoader.exists(String(DungeonBestiary.foe_def(fid4)
+                .get("sheet", "res://assets/sprites/dungeon/none.png"))):
+            d4_sheets_ok = false
+    # босс — не «foe», его лист проверяем через boss_for
+    if not ResourceLoader.exists(String(DungeonBestiary.boss_for("dungeon_4")
+            .get("sheet", "res://assets/sprites/dungeon/none.png"))):
+        d4_sheets_ok = false
+    check("листы Древних и Шуб-Ниггурат существуют", d4_sheets_ok \
+        and ResourceLoader.exists("res://assets/sprites/portraits/boss_shub.png") \
+        and ResourceLoader.exists("res://assets/sprites/dungeon/tentacle_wall.png"))
+    var boss4_def: Dictionary = DungeonBestiary.boss_for("dungeon_4")
+    check("босс данжа 4 — Шуб-Ниггурат (лист 96x128, x4)", \
+        String(boss4_def["id"]) == "boss_shub" \
+        and String(boss4_def["sheet"]).contains("boss_shub") \
+        and int(boss4_def["scale"]) == 4)
+    check("темы данжа 4 — Древние (шаг 24)", \
+        String(DungeonBestiary.theme_for_floor(1, "dungeon_4").get("id", "")) == "blasphemous_grove" \
+        and String(DungeonBestiary.theme_for_floor(4, "dungeon_4").get("id", "")) == "black_altar")
+    check("у данжей 1-3 есть ключ босса (шаг 24)", \
+        String(DungeonBestiary.dungeon_meta("dungeon_1").get("boss_key", "")) == "key_skit" \
+        and String(DungeonBestiary.dungeon_meta("dungeon_2").get("boss_key", "")) == "key_depths" \
+        and String(DungeonBestiary.dungeon_meta("dungeon_3").get("boss_key", "")) == "key_ancients" \
+        and String(DungeonBestiary.dungeon_meta("dungeon_4").get("boss_key", "")) == "")
+    check("ключи существуют и не продаются", \
+        int(ItemDB.get_item("key_skit").get("price", -1)) == 0 \
+        and int(ItemDB.get_item("key_depths").get("price", -1)) == 0 \
+        and int(ItemDB.get_item("key_ancients").get("price", -1)) == 0)
     # звук: 14 SFX-файлов и жуткий эмбиент сгенерированы
     check("Sfx: 20 эффектов описаны (шаг 21 — голос Ктулху)",
         Sfx.SOUNDS.size() == 20 and Sfx.SOUNDS.has("surge")
@@ -424,7 +462,7 @@ func _ready() -> void:
     # всех 8 этажей обоих данжей: спавн -> лестницы наверх/вниз/босс
     var door_ok := true
     var conn_ok := true
-    for d_id in ["dungeon_1", "dungeon_2", "dungeon_3"]:
+    for d_id in ["dungeon_1", "dungeon_2", "dungeon_3", "dungeon_4"]:
         for f in range(1, DungeonBestiary.FLOORS + 1):
             var fl: Dictionary = DungeonBestiary.generate_floor(f,
                 f == DungeonBestiary.FLOORS, d_id)
@@ -459,15 +497,15 @@ func _ready() -> void:
             if f == DungeonBestiary.FLOORS and not seen.has(boss_t):
                 conn_ok = false
     check("проход в зал босса шириной 3 (шаг 17)", door_ok)
-    check("все 12 этажей трёх данжей связны (шаги 17/20)", conn_ok)
+    check("все 16 этажей четырёх данжей связны (шаги 17/20/24)", conn_ok)
     # кайт возможен, только если враг не догоняет героя (герой — 95)
     var kite_ok := true
     for source: Array in [DungeonBestiary.FOES, DungeonBestiary.FOES_2,
-            DungeonBestiary.FOES_3]:
+            DungeonBestiary.FOES_3, DungeonBestiary.FOES_4]:
         for def: Dictionary in source:
             if float(def["speed"]) >= 95.0:
                 kite_ok = false
-    for boss_d in ["dungeon_1", "dungeon_2", "dungeon_3"]:
+    for boss_d in ["dungeon_1", "dungeon_2", "dungeon_3", "dungeon_4"]:
         if float(DungeonBestiary.boss_for(boss_d)["speed"]) >= 95.0:
             kite_ok = false
     check("все враги медленнее героя — кайт возможен (шаг 17)", kite_ok)
@@ -515,7 +553,7 @@ func _ready() -> void:
     await get_tree().process_frame
     var boss2_rec: Dictionary = skit._boss_record()
     check("на 4-м этаже скита есть босс", not boss2_rec.is_empty())
-    check("босс — культист (лист 72x96, втрое крупнее, хп ЗАГЛУШКА 420)", \
+    check("босс — культист (лист 72x96, втрое крупнее, хп 420)", \
         String(boss2_rec["def"]["sheet"]).contains("cultist_overlord") \
         and int(boss2_rec["def"]["scale"]) == 3 and int(boss2_rec["max_hp"]) == 420)
     check("тема этажа 4 скита — Святилище Пустоты", \

@@ -9,6 +9,10 @@
 ## надетого предмета, клик по ячейке снимает его; броню/одеяния можно
 ## надеть кнопкой ОДЕТЬ (одеяния — только магу, варвару отказ); в шапке
 ## видно бонус надетой брони (+ХП, +мана).
+## Шаг 24 (бездонная сумка): сетка живёт в ScrollContainer — колесо
+## мыши, свайп и полоса прокрутки крутят список; ячеек минимум 20
+## (старое поведение), дальше сетка растёт под фактическое число вещей:
+## инвентарь больше НЕ лимитирован, всё добытое помещается.
 class_name InventoryUI
 extends CanvasLayer
 
@@ -35,6 +39,10 @@ var _weapon_cell: PanelContainer = null
 var _armor_cell: PanelContainer = null
 var _weapon_icon: TextureRect = null
 var _armor_icon: TextureRect = null
+# --- шаг 24: бездонная сумка ---
+var _scroll: ScrollContainer = null
+# --- шаг 24: бездонная сумка ---
+# --- шаг 24: бездонная сумка ---
 
 func _ready() -> void:
     layer = 26
@@ -122,14 +130,18 @@ func _ready() -> void:
     equip_hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     equip_row.add_child(equip_hint)
 
-    # --- сетка слотов
+    # --- сетка слотов в прокручиваемом списке (шаг 24: бездонная сумка)
     _grid = GridContainer.new()
     _grid.columns = GRID_COLS
     _grid.add_theme_constant_override("h_separation", 6)
     _grid.add_theme_constant_override("v_separation", 6)
     var center := CenterContainer.new()
     center.add_child(_grid)
-    vbox.add_child(center)
+    _scroll = ScrollContainer.new()
+    _scroll.custom_minimum_size = Vector2(0, 238)
+    _scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    _scroll.add_child(center)
+    vbox.add_child(_scroll)
 
     # --- описание выбранного предмета
     _desc_label = RichTextLabel.new()
@@ -173,6 +185,7 @@ func open() -> void:
     _selected_index = -1
     _use_button.visible = false
     _equip_button.visible = false
+    _fit_scroll_budget()
     _rebuild_grid()
     _refresh_equip_cells()
     visible = true
@@ -199,6 +212,18 @@ func _hero_stats_text() -> String:
         text += "\nНадето: %s · %s" % [ItemDB.title(armor_id), bonus]
     return text
 
+## Высота списка сумки под вьюпорт: на маленьких экранах шапка,
+## экипировка, описание и кнопки остаются на виду (как в лавке).
+func _fit_scroll_budget() -> void:
+    if _scroll == null:
+        return
+    var vp := get_viewport()
+    if vp != null:
+        var budget := vp.get_visible_rect().size.y - 372.0
+        _scroll.custom_minimum_size.y = clampf(238.0, 120.0,
+            maxf(120.0, budget))
+    _scroll.scroll_vertical = 0
+
 func close() -> void:
     visible = false
     closed.emit()
@@ -207,7 +232,11 @@ func _rebuild_grid() -> void:
     for child in _grid.get_children():
         _grid.remove_child(child)
         child.free()
-    for i in range(SLOTS):
+    # Шаг 24: минимум 20 ячеек (пустая сумка выглядит по-старому),
+    # дальше сетка растёт под фактическое число вещей + пустой хвост
+    # в одну строку. Сумка бездонная: всё добытое видно списком.
+    var slots := maxi(SLOTS, Game.inventory.size() + GRID_COLS)
+    for i in range(slots):
         _grid.add_child(_make_slot(i))
 
 ## Ячейка экипировки (шаг 12): ОРУЖИЕ или БРОНЯ. Пустая — тёмная рамка,

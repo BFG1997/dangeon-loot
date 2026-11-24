@@ -16,9 +16,10 @@
 ## Шаг 18: способности героев — по два приёма у каждого класса: Q и
 ## пробел (таблица ABILITIES ниже); барьер мага и щит воина дают
 ## неуязвимость (hero_immune), щит ослабляет удары (guard_active).
-## Шаг 19 (опыт и уровни, звук, добыча): у героя есть level/xp —
-## примитивно, без прокачки, как задал автор: урон и максимум ХП
-## удваиваются с каждым уровнем (hero_level_mult), уровень лечит героя.
+## Шаг 19 (опыт и уровни, звук, добыча): у героя есть level/xp.
+## Шаг 25 (баланс): урон и максимум ХП растут на +35% за уровень
+## (hero_level_mult) вместо удвоения — удвоение ломало эндгейм;
+## уровень лечит героя.
 ## Порог опыта — XP_BASE * level * level (см. add_xp). Сейв v7: в него
 ## добавлены level и xp (старые сейвы мигрируют: уровень 1, опыта 0).
 ## Шаг 20 (полировка): кулдауны приёмов снижены, звук мягче, в HUD
@@ -26,7 +27,7 @@
 ## класса ТРЕТИЙ приём на T (слот "t" в ABILITIES): маг тратит всю ману
 ## и бьёт всех врагов карты на 20×уровень (damage_per_level), бомж
 ## полностью лечится, варвар прыгает на врага (убийство не-босса, боссу
-## boss_damage + урон оружия), рыцарь зовёт град мечей (урон актуального
+## boss_damage + урон оружия), воин зовёт град мечей (урон актуального
 ## удара за каждое попадание). Уровень по-прежнему полностью лечит героя.
 ## Шаг 12 (боевая система: экипировка и ярость демона):
 ## - второй слот экипировки — броня/одеяние (equipped_armor_id): броня даёт
@@ -47,6 +48,13 @@
 ##   сейв v6, все убитые NPC оживают и забывают убийства, демон больше
 ##   не возвращается даже после новых убийств (revive_all_npcs);
 ## - dungeon_floor — текущий этаж данжа (0 = не в данже, только сессия).
+## Шаг 24 (мутация и финал):
+## - когда пройден данж 3 (открыт последний, четвёртый), все NPC замутантов:
+##   говорят бред, торгуют, но ДОРОЖЕ (+50%) — mutation_active();
+## - когда пройден данж 4, в замке начинается ФИНАЛ: все NPC мертвы,
+##   кроме Лир — она Королева ночи и пятый босс (finale_active());
+##   после её смерти queen_slain=true пишется в сейв v8 и игра завершена
+##   (старые сейвы мигрируют: Королева жива).
 extends Node
 
 signal meta_saved(error: int)
@@ -66,7 +74,7 @@ signal level_up(new_level: int)
 
 const START_GOLD := 0
 const SLOT_COUNT := 3
-## ЗАГЛУШКА характеристик: точные числа неиграбельных героев уточняются позже.
+## Характеристики героев — подтверждены балансным проходом шага 25.
 ## sheet — лист 24x32 (6 рядов анимаций), portrait — крупный портрет для диалогов,
 ## start_gold — стартовый кошелёк героя при новой игре (шаг 5),
 ## hp/mana — стартовое здоровье и мана (шаг 6; мана есть только у мага).
@@ -100,13 +108,13 @@ const HEROES: Dictionary = {
         "flavor": "Хрупкий, но повелевает маной. Стреляет стрелами света.",
         "sheet": "res://assets/sprites/chars/mage.png",
         "portrait": "res://assets/sprites/portraits/mage.png",
-        "start_gold": 60,   # ЗАГЛУШКА: стартовое золото мага не задано автором
+        "start_gold": 60,   # шаг 25: подтверждено (между варваром 50 и воином 100)
         "hp": 30, "mana": 70,
     },
 }
 const DEFAULT_HERO := "warrior"
 
-## Урон удара рукой (шаг 7, ЗАГЛУШКА — уточняется с автором).
+## Урон удара рукой (шаг 7; шаг 25: подтверждено — слабее любого оружия).
 ## Удар без оружия в руках доступен всем героям, включая мага.
 const HAND_DAMAGE := 5
 ## Название удара без оружия (для HUD, сумки и подсказок).
@@ -138,9 +146,9 @@ const SPELL := {
 }
 
 ## ------------------------------------------------ уровни и опыт (шаг 19)
-## Примитивная система (задано автором; прокачка — в будущем): за победу
-## дают опыт, при переполнении порога уровень растёт. Пока просто:
-## урон и максимум ХП удваиваются за каждый уровень (hero_level_mult),
+## Система: за победу дают опыт, при переполнении порога уровень растёт.
+## Шаг 25 (баланс): урон и максимум ХП растут на +35% за уровень
+## (hero_level_mult; раньше было удвоение — оно ломало эндгейм),
 ## уровень лечит героя. XP_BASE — опыт за подъём с 1-го на 2-й уровень;
 ## дальше порог растёт по квадрату уровня (45/180/405/720...), чтобы
 ## уровни шли примерно по этажу данжа, а не по каждому врагу.
@@ -155,9 +163,13 @@ var xp: int = 0                     # накопленный опыт к сле�
 func xp_needed() -> int:
     return XP_BASE * level * level
 
-## Множитель силы героя: x1 на 1-м уровне и x2 за каждый уровень.
+## Множитель силы героя: x1 на 1-м уровне, дальше +35% за каждый уровень
+## (шаг 25: раньше было удвоение за уровень — оно ломало позднюю игру:
+## на 8-м уровне герой бил в 128 раз сильнее и снимал любого босса
+## с одного удара). ХП и урон растут по одной кривой: ур.2 x1.35,
+## ур.3 x1.7... ур.10 x4.15.
 func hero_level_mult() -> float:
-    return pow(2.0, float(level - 1))
+    return 1.0 + 0.35 * float(level - 1)
 
 ## Добавить опыт за победу. При переполнении порога — повышение уровня
 ## (может случиться несколько раз за разом): урон и потолок ХП растут,
@@ -300,6 +312,11 @@ var demon_defeated: bool = false
 ## Шаг 13: текущий этаж данжа 1 (1..10), 0 — герой не в подземелье.
 ## Только сессия: в сейв не пишется, при выходе/смерти обнуляется.
 var dungeon_floor: int = 0
+## Шаг 24 (финал): Королева ночи повержена — игра завершена. Пишется
+## в сейв v8; старые сейвы мигрируют с queen_slain=false.
+## Королева в бою (после её признания) — состояние сессии, в сейв не пишется.
+var queen_slain: bool = false
+var queen_hostile: bool = false
 ## Какое подземелье открыто (шаг 16): "dungeon_1" — Подземелье замка,
 ## "dungeon_2" — Скит Пустоты. Состояние сессии, в сейв не пишется.
 var current_dungeon: String = "dungeon_1"
@@ -311,6 +328,49 @@ var current_dungeon: String = "dungeon_1"
 ## визуалом (рост спрайта) через titan_active().
 var titan_until: int = 0
 var titan_mult: float = 1.0
+
+## ------------------------------------------------ мутация и финал (шаг 24)
+
+## Последний данж (4-й) открыт: данж 3 пройден. В этот момент все NPC
+## мутируют в монстров: бредят и торгуют ДОРОЖЕ (+50%).
+func dungeon_4_open() -> bool:
+    return dungeons_cleared.has("dungeon_3")
+
+## Активна ли мутация NPC: данж 4 открыт, но финал ещё не начался
+## (Шуб-Ниггурат жива) и Королева ещё не повержена.
+func mutation_active() -> bool:
+    return dungeon_4_open() and not dungeons_cleared.has("dungeon_4") \
+        and not queen_slain
+
+## Множитель цен в лавках замутантов (+50% — задано автором шага 24).
+const MUTATION_PRICE_MULT := 1.5
+
+func mutation_price_mult() -> float:
+    return MUTATION_PRICE_MULT if mutation_active() else 1.0
+
+## Цена покупки у обычного торговца (у демона своя — demon_price).
+## Мутант дороже: Пустота забирает свою долю. Непродажное остаётся непродажным.
+func npc_buy_price(item_id: String) -> int:
+    var base := ItemDB.price(item_id)
+    if base <= 0:
+        return base
+    return maxi(1, int(round(float(base) * mutation_price_mult())))
+
+## Идёт ли ФИНАЛ: данж 4 пройден, Королева ночи ещё жива. Все NPC кроме
+## Лир мертвы, Лира стала Королевой ночи (пятый босс, см. world.gd).
+func finale_active() -> bool:
+    return dungeons_cleared.has("dungeon_4") and not queen_slain
+
+## Последний пройденный данж (для реакций NPC; "" — ничего не пройдено).
+func last_cleared_dungeon() -> String:
+    return String(dungeons_cleared.back()) if not dungeons_cleared.is_empty() \
+        else ""
+
+## Королева ночи повержена: финал завершён, пишем в сейв v8.
+func slay_queen() -> void:
+    queen_slain = true
+    queen_hostile = false
+    Saves.request_save()
 
 ## Войти в форму титана на duration секунд с множителем урона mult.
 func start_titan_rage(duration: float, mult: float) -> void:
@@ -337,7 +397,7 @@ var guard_active := false
 func ability_info(slot: String) -> Dictionary:
     var klass: Dictionary = ABILITIES.get(hero_id, {})
     var info := (klass.get(slot, {}) as Dictionary).duplicate(true)
-    # Шаг 19: урон приёмов растёт с уровнем героя (топор, тик газа, бросок).
+    # Шаг 25: урон приёмов растёт с уровнем героя (+35%/уровень; топор, тик газа).
     for key in ["damage", "tick_damage", "splash_damage"]:
         if info.has(key):
             info[key] = maxi(1, int(round(float(info[key]) * hero_level_mult())))
@@ -388,8 +448,8 @@ func hero_max_mana(hero: String) -> int:
     return int(HEROES.get(hero, {}).get("mana", 0))
 
 func max_hp() -> int:
-    # Шаг 19: базовые ХП героя удваиваются с каждым уровнем
-    # (бонус брони остаётся плоским прибавкой).
+    # Шаг 25: базовые ХП героя растут на +35%% за уровень (hero_level_mult;
+    # было удвоение — ломало эндгейм). Бонус брони остаётся плоской прибавкой.
     var base := int(round(float(hero_max_hp(hero_id)) * hero_level_mult()))
     return base + ItemDB.hp_bonus(equipped_armor_id)
 
@@ -533,7 +593,7 @@ func spell_info() -> Dictionary:
             info["weapon_id"] = equipped_weapon_id
             return info
     var arrow := SPELL.duplicate()
-    # Шаг 19: урон магии тоже растёт с уровнем мага.
+    # Шаг 25: урон магии тоже растёт с уровнем мага (+35%/уровень).
     arrow["damage"] = maxi(1, int(round(float(arrow["damage"]) * hero_level_mult())))
     return arrow
 
@@ -668,7 +728,7 @@ func _strike_damage_base() -> int:
         else:
             var mult := float(CLASS_STRIKE_MULT.get(hero_id, 1.0))
             dmg = maxi(1, int(round(float(base) * mult)))
-    # Шаг 19: урон удара удваивается с каждым уровнем героя.
+    # Шаг 25: урон удара растёт на +35% за уровень героя.
     return maxi(1, int(round(float(dmg) * hero_level_mult())))
 
 ## Шаг 12: магический эффект в действии? (не-маг бьёт магическим оружием:
@@ -849,7 +909,8 @@ func add_item(item: Dictionary, do_save: bool = true) -> void:
 ## Возвращает false, если товара нет в базе, он бесплатный/непродажный
 ## или не хватает золота.
 func buy_item(item_id: String) -> bool:
-    var cost := ItemDB.price(item_id)
+    # Шаг 24: замутант торговец продаёт ДОРОЖЕ (+50%), обычный — по базовой.
+    var cost := npc_buy_price(item_id)
     if cost <= 0:
         return false
     if not spend_gold(cost):
@@ -979,6 +1040,8 @@ func reset_progress() -> void:
     guard_active = false
     merchant_stock = {}
     demon_stock = []
+    queen_slain = false
+    queen_hostile = false
     level = 1
     xp = 0
     current_slot = 0
@@ -1034,6 +1097,8 @@ func new_run(slot: int, hero: String) -> void:
     titan_mult = 1.0
     merchant_stock = {}
     demon_stock = []
+    queen_slain = false
+    queen_hostile = false
     _transfer_pending_bonus()
     gold_changed.emit(gold)
     inventory_changed.emit()
@@ -1099,7 +1164,7 @@ func _transfer_pending_bonus() -> void:
 
 func to_save_data() -> Dictionary:
     return {
-        "v": 7,
+        "v": 8,
         "hero_id": hero_id,
         "level": level,
         "xp": xp,
@@ -1111,6 +1176,7 @@ func to_save_data() -> Dictionary:
         "equipped_weapon_id": equipped_weapon_id,
         "equipped_armor_id": equipped_armor_id,
         "demon_defeated": demon_defeated,
+        "queen_slain": queen_slain,
         "merchant_stock": merchant_stock,
         "demon_stock": demon_stock,
         "saved_at": Time.get_datetime_string_from_system(false, true),
@@ -1188,6 +1254,9 @@ func load_save_data(data: Dictionary) -> void:
     # Шаг 13: демон, убитый навсегда, остаётся мёртвым и после загрузки
     # (сейв v6; старые сейвы мигрируют: демон ещё жив).
     demon_defeated = bool(data.get("demon_defeated", false))
+    # Шаг 24: Королева ночи (сейв v8; старые сейвы мигрируют: она жива).
+    queen_slain = bool(data.get("queen_slain", false))
+    queen_hostile = false
     # Мёртвые NPC в сейв не пишутся: список живёт только в сессии.
     # Совместимость с сейвами шагов 1-2: настройки жили в сейве.
     if data.has("settings"):

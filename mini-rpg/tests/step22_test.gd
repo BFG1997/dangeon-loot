@@ -43,9 +43,9 @@ func _run() -> void:
     check("старт: хп ровно максимуму 1-го уровня",
         Game.hp == Game.max_hp() and Game.max_hp() == 50)
     Game.add_xp(45 + 180 + 1)   # порог 2-го уровня + порог 3-го + 1
-    check("прокачка до 3-го уровня: хп = новому потолку (200)",
+    check("прокачка до 3-го уровня: хп = новому потолку (85)",
         Game.level == 3 and Game.hp == Game.max_hp()
-        and Game.max_hp() == 200)
+        and Game.max_hp() == 85)
     Game.new_run(1, "warrior")   # новый забег в той же сессии
     check("новый забег после прокачанного: ХП сброшено (шаг 22)",
         Game.level == 1 and Game.hp == Game.max_hp()

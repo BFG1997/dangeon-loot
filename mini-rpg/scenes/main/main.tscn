@@ -124,7 +124,7 @@ grow_horizontal = 2
 theme_override_colors/font_color = Color(0.81, 0.85, 0.89, 1)
 theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
-text = "Тапни по сундуку!"
+text = "Кликни по сундуку!"
 
 [node name="StatsLabel" type="Label" parent="."]
 layout_mode = 1
@@ -254,7 +254,7 @@ theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(1, 0.84, 0, 1)
 autowrap_mode = 3
 horizontal_alignment = 1
-text = "Спасибо, что тапаете по сундукам!"
+text = "Спасибо, что кликаете по сундукам!"
 
 [node name="CloseButton" type="Button" parent="PanelLayer/Center/AuthorsPanel/VBox"]
 layout_mode = 2

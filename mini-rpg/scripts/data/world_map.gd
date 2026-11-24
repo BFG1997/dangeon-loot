@@ -102,8 +102,8 @@ const MAP: Array[String] = [
 ## goods (шаг 5) — список id товаров для торговли (см. ItemDB.ITEMS);
 ## NPC без ключа goods — просто собеседник (кнопки «ТОРГОВАТЬ» не будет).
 ## Шаг 6: в замке добавились Глот (напитки) и Зоран (магическое оружие).
-## Шаг 7 (боевая система): у каждого NPC есть hp (ЗАГЛУШКИ — числа уточняются
-## с автором): по нему бьёт удар (E) — см. world.gd; NPC, чьё хп упало до 0,
+## Шаг 7 (боевая система): у каждого NPC есть hp (числа подтверждены,
+## шаг 25): по нему бьёт удар (E) — см. world.gd; NPC, чьё хп упало до 0,
 ## умирает и до конца сессии не воскресает, остальные NPC это запоминают.
 ## Шаг 8: Таинственный демон у края улицы. scale — во сколько раз он крупнее
 ## обычного NPC (кадры 24x32 * scale); demon: true — не спавнится на старте
@@ -111,7 +111,7 @@ const MAP: Array[String] = [
 ## Шаг 12: после 3 ударов демон впадает в ярость и дерётся (см. world.gd).
 ## Ключа goods у демона нет: его ассортимент — товары убитых торговцев
 ## (Game.demon_goods), цены со скидкой -10% за каждого убитого NPC
-## (Game.demon_price). hp демона — ЗАГЛУШКА.
+## (Game.demon_price). hp демона — 260 (шаг 25: усилен с 200).
 const NPCS: Array[Dictionary] = [
         {"id": "zlus", "name": "Злус", "role": "Придворный маг", "tile": Vector2(5, 5), "zone": "castle", "sheet": "res://assets/sprites/chars/zlus.png", "portrait": "res://assets/sprites/portraits/zlus.png", "goods": ["hp_potion_small", "hp_potion", "hp_potion_large", "mana_potion_small", "mana_potion", "mana_potion_large"], "hp": 40},
         {"id": "lira", "name": "Лира", "role": "Хозяйка замка", "tile": Vector2(16, 15), "zone": "castle", "sheet": "res://assets/sprites/chars/lira.png", "portrait": "res://assets/sprites/portraits/lira.png", "hp": 30},
@@ -119,7 +119,7 @@ const NPCS: Array[Dictionary] = [
         {"id": "zoran", "name": "Зоран", "role": "Оружейный чародей", "tile": Vector2(8, 11), "zone": "castle", "sheet": "res://assets/sprites/chars/zoran.png", "portrait": "res://assets/sprites/portraits/zoran.png", "goods": ["wand_lightning", "blade_frost", "scepter_comet", "robe_faded", "robe_stars", "robe_void"], "hp": 80},
         {"id": "gura", "name": "Гура", "role": "Повар", "tile": Vector2(6, 29), "zone": "street", "sheet": "res://assets/sprites/chars/gura.png", "portrait": "res://assets/sprites/portraits/gura.png", "goods": ["ham"], "hp": 35},
         {"id": "viras", "name": "Вирас", "role": "Кузнец", "tile": Vector2(23, 31), "zone": "street", "sheet": "res://assets/sprites/chars/viras.png", "portrait": "res://assets/sprites/portraits/viras.png", "goods": ["sword", "greatsword", "morgenstern", "armor_leather", "armor_chain", "armor_plate"], "hp": 90},
-        {"id": "demon", "name": "Таинственный демон", "role": "поклонник смелости", "tile": Vector2(15, 44), "zone": "street", "sheet": "res://assets/sprites/chars/demon.png", "portrait": "res://assets/sprites/portraits/demon.png", "scale": 3, "demon": true, "hp": 200},
+        {"id": "demon", "name": "Таинственный демон", "role": "поклонник смелости", "tile": Vector2(15, 44), "zone": "street", "sheet": "res://assets/sprites/chars/demon.png", "portrait": "res://assets/sprites/portraits/demon.png", "scale": 3, "demon": true, "hp": 260},
 ]
 
 const PROPS: Array[Dictionary] = [

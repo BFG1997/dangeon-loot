@@ -43,7 +43,7 @@
 ##   DEMON_DAMAGE с кулдауном; лавка демона в ярости закрыта, реплики
 ##   меняются на угрозы; в этом состоянии он остаётся до конца сессии;
 ## - герой получил смерть: при хп 0 — затемнение «ТЫ ПАЛ», по кнопке герой
-##   очинается в замке с полными хп/маной (без штрафов — ЗАГЛУШКА);
+##   очнётся в замке с полными хп/маной (без штрафов — подтверждено, шаг 25);
 ## - у мага Q стал зависимым от оружия: с магическим оружием — залп
 ##   этого оружия (веер снарядов из ItemDB.volley), без него — классическая
 ##   «Магическая стрела»; не-магам Q отвечает отказом (свой у каждого класса);
@@ -63,7 +63,7 @@
 ## Шаг 19: жители и демон чуть крупнее; удар — с видимым оружием и дугой,
 ## снаряды со свечением и следом; звук эффектов (Sfx) и тихий эмбиент
 ## (Silent Hill); демона можно убить — с него опыт (Game.DEMON_XP), у
-## героя — уровни (урон и ХП удваиваются; HUD: полоса опыта, «УРОВЕНЬ N!»).
+## героя — уровни (урон и ХП +35% за уровень, шаг 25; HUD: полоса опыта, «УРОВЕНЬ N!»).
 ## Шаг 20 (полировка): звук мягче, эмбиент мелодичнее; кулдауны приёмов
 ## снижены; бег на
 ## Shift; удар по умолчанию на F, взаимодействие — на E; у каждого класса
@@ -75,6 +75,15 @@
 ## «Глубины Р'льеха» открывается после победы в Ските Пустоты (данж 3 —
 ## в бестиарии, шаг 20). Проданная торговцу экипировка попадает на его
 ## прилавок (Game.merchant_goods).
+## Шаг 24 (юг жутчеет, мутация и финал):
+## - космос на юге карты темнеет и обрастает глазами с каждым пройденным
+##   подземельем (COSMOS_DREAD; текст края мира тоже меняется);
+## - NPC реагируют на пройденное подземелье репликой (NPC_DUNGEON_REACTIONS);
+## - когда открыт последний данж (данж 3 пройден), все NPC мутируют:
+##   бредят (NPC_MAD_LINES), торгуют ДОРОЖЕ (+50%), цвет и дрожь — приметы;
+## - после победы над Шуб-Ниггурат начинается ФИНАЛ: все NPC мертвы,
+##   кроме Лир — Королевы ночи (пятый босс, бой в мире после признания);
+##   после её смерти — экран «КОНЕЦ ИГРЫ» (queen_slain пишется в сейв v8).
 extends Node2D
 
 const MAIN_SCENE := "res://scenes/main/main.tscn"
@@ -86,11 +95,12 @@ const COLOR_GOLD := Color(1, 0.84, 0)
 const CHAR_W := 24
 const CHAR_H := 32
 
-## Шаг 10/11: экран ходьбы и консоль UI. Мир рендерится в SubViewport
-## 360xWALK_H, вставленный в верхнюю часть экрана; нижние UI_BAR_H
-## пикселей отданы нижней консоли: панель героя, кнопки действий и
-## джойстик живут там и окружение не перекрывают. Шаг 11: консоль сжата
-## с 148 до 112 px (кнопки 64x22, джойстик 100 px) — экран ходьбы вырос.
+## Шаг 10/11: экран ходьбы и консоль UI. Мир рендерится в SubViewport во
+## всю ширину окна минус консоль; нижние UI_BAR_H пикселей отданы нижней
+## консоли: панель героя, кнопки действий и (на сенсорных экранах) джойстик
+## живут там и окружение не перекрывают. Шаг 11: консоль сжата с 148 до
+## 112 px. Шаг 25: игра переведена на ПК — окно 1920x1080, логические
+## 960x540 (stretch scale 2.0), раскладка адаптивная.
 const UI_BAR_H := 112.0
 const WALK_H := 640.0 - UI_BAR_H
 ## Геометрия консоли (в её локальных координатах, 360 x UI_BAR_H):
@@ -167,10 +177,20 @@ const DOOR3_LOCKED_LINES := [
     "«Ещё рано», — говорит сам сон. — «Сначала замолчи Скит Пустоты: его жрец ещё поёт». Пройди скит до конца.",
     "Когда верховный жрец умолкнет, дверь услышит твои шаги и откроется. Или её сорвёт с петель то, что спит.",
 ]
+## Дверь 4 (шаг 24): «Логово Древних» — открывается после победы над
+## Большим Ктулху в Глубинах Р'льеха. Пока данж 3 не пройден, за дверью
+## переговариваются голоса Древних.
+const DOOR4_NAME := "Дверь древних"
+const DOOR4_ROLE := "Заперто голосами"
+const DOOR4_LOCKED_LINES := [
+    "За этой дверью пахнет молоком и чёрным камнем. Голоса спорят о тебе на языке старше имён.",
+    "«Ещё зелёный», — говорят голоса. — «Спящий внизу не умер, он задремал. Уложи его и приходи: наш сад уже прогрет».",
+    "Когда глубины замолчат, дверь сама отвалится: её держит только интерес Древних. Пока им любопытно — она закрыта.",
+]
 ## Шаг 13: диалог открытой двери 1 (перед входом в данж — у двери свой голос).
 const DOOR_OPEN_LINES := [
-    "Эта дверь дышит. За ней — десять этажей вниз, и на каждом что-то шевелится.",
-    "На самом дне ждёт тот, кто уже знает твоё имя. Лестницы открываются тишине: очисти зал — и путь вниз откроется.",
+    "Эта дверь дышит. За ней — четыре этажа вниз, и на каждом что-то шевелится.",
+    "На самом дне ждёт тот, кто уже знает твоё имя. Лестница вниз открыта — спускайся, если готов.",
 ]
 const DOOR_OPEN_ROLE := "Открыто"
 ## Дистанция до двери для E-взаимодействия (клик работает издалека).
@@ -189,10 +209,11 @@ const AMBIENT_DB := -16.0
 
 ## Шаг 12: ярость демона. Порог ударов — в Game.DEMON_RAGE_HITS (3).
 ## Скорость преследования ниже скорости героя (SPEED 95) — убежать можно.
-## DEMON_DAMAGE и дистанция когтей — ЗАГЛУШКИ, утверждает автор.
+## Шаг 25: числа подтверждены и усилены (было 8 урона и дистанция 30) —
+## разъярённый демон обязан пугать, а не щекотать.
 const DEMON_SPEED := 55.0
-const DEMON_DAMAGE := 8
-const DEMON_ATTACK_RANGE := 30.0
+const DEMON_DAMAGE := 10
+const DEMON_ATTACK_RANGE := 32.0
 const DEMON_ATTACK_CD := 1.0
 const DEMON_RAGE_TINT := Color(1.2, 0.45, 0.45)
 ## Демон считает удары вслух: после третьего следует ярость (сигнал Game).
@@ -207,7 +228,7 @@ const DEMON_RAGE_LINES := [
     "Моя лавка закрыта. Милосердие кончилось. Сейчас я покажу тебе, что живёт между звёздами.",
     "Беги или стой — всё равно. Пустота уже держит твою тень за горло.",
 ]
-## Текст экрана смерти (шаг 12, ЗАГЛУШКА: штрафов нет — автор утвердит позже).
+## Текст экрана смерти (шаг 12; шаг 25: решение «без штрафов» подтверждено).
 const DEATH_TITLE := "ТЫ ПАЛ"
 const DEATH_TEXT := "Космос равнодушно смотрел, как твоя тень растворилась между звёзд. Но замок ещё держит тебя в этом сне — и возвращать не собирается."
 const DEATH_BUTTON := "ОЧНУТЬСЯ В ЗАМКЕ"
@@ -241,6 +262,110 @@ const NPC_VICTIM_ACC := {
     "zoran": "Зорана", "gura": "Гуру", "viras": "Вираса",
     "demon": "демона",
 }
+
+## Шаг 24 (п.1): NPC РЕАГИРУЮТ на пройденное подземелье: первая реплика
+## диалога — реакция на данж, пройденный последним (Game.last_cleared_dungeon).
+const NPC_DUNGEON_REACTIONS := {
+    "dungeon_1": {
+        "zlus": "Демон повержен, говоришь? Котёл всю ночь шептал твоё имя — с уважением. Пройдёшь ещё ниже — сваришься сам.",
+        "lira": "Замок слегка выровнялся с уходом демона. Звёзды снова врут, но уже тише. Ты сделал то, о чём молились даже двери.",
+        "glot": "За демона — выпивка за счёт заведения. Шутка. За счёт тебя. Всё, что здесь «за счёт», оплачиваешь ты.",
+        "zoran": "Пепел демона — лучшая закалка. Мои клинки слышали его смерть и стали на полтона злее. Ступай глубже: металл любит смелых.",
+        "gura": "Демон падал так громко, что мясо дошло само. Ешь. Тебе предстоят ещё три двери, и они голоднее первой.",
+        "viras": "Демон? Я ковал гвоздь для его гроба годами. Теперь кую для тех, кто за ним. Горн ждёт твоих заказов.",
+    },
+    "dungeon_2": {
+        "zlus": "Верховный жрец молчит? Значит, шёпот уехал ниже, в глубины. Котёл услышал тишину и закипел сам — это нехорошо.",
+        "lira": "Скит опустел... Карты звёзд перерисовались сами. Между «скит» и «глубины» теперь стоит имя замка. И оно твоё.",
+        "glot": "Культисты заказывали у меня морс... посмертно. Пей: тишине скита нужна запивка, а тебе — храбрость.",
+        "zoran": "Жрец кормил Пустоту тишиной — ты накормил её сталью. Мои одеяния слышали его последнюю молитву и потемнели от уважения.",
+        "gura": "Жрец умел молчать — теперь он мастер этого дела. Ешь, смертный: глубины уже отварили тебе место за столом.",
+        "viras": "Жрец щупалец? Мой молот щупал его щупальца ещё до твоего рождения. Куй дальше — впереди глубины, и им нужны крепкие руки.",
+    },
+    "dungeon_3": {
+        "zlus": "Ктулху уснул... Котёл и он теперь спят в одну смену. В четвёртой двери спят Древние — и их сны уже текут сюда.",
+        "lira": "Р'льех ушёл в сон, а замок слушал его храп тысячу лет. Четвёртая дверь открыта — это дурной знак. Твой, конечно.",
+        "glot": "За Ктулху — пиво. Настоящее. Последнее, что сварено в этом мире, как выяснится позже. Тост: «за тех, кто ещё дышит».",
+        "zoran": "Спящий видел все имена, включая твоё, — а ты заставил его закрыть глаза. Моя магия аплодирует. Тихо, чтобы не разбудить Древних.",
+        "gura": "Ктулху спит — значит, скоро проснётся голодным. Ешь сейчас. В логове Древних едят гостей, а не наоборот.",
+        "viras": "Ктулху повержен... Я буду ковать всю ночь: впереди сад, где вместо травы — щупальца. Возьми из моей стали всё, что унесёшь.",
+    },
+}
+
+## Шаг 24 (п.8): бред замутантов. Когда открыт последний данж, NPC говорят
+## на языке, которого нет, — но лавки не закрывают: Пустоте нужны деньги.
+const NPC_MAD_LINES := {
+    "zlus": [
+        "Кхм... рецеп-рецептов больше нет, есть только КОТЁЛ, и котёл говорит Я. Зелья есть. Цены есть. Ты есть — до конца строчки.",
+        "Мана-мана-мана-мана... зелья зелья зелья... прости, рот уже не мой. Флаконы в ряд: малый, средний, большой, твой.",
+    ],
+    "lira": [
+        "Звёзды взяли меня за горло за руку за строчку... замок плывёт вниз, а не вбок, ты знал? ты знал-знал-знал...",
+        "Я хозяйка... хозяйка... их-их-их... платье сшито из тьмы, и тьма сшила меня. Торгуй со мной, пока рот ещё помнит цены.",
+    ],
+    "glot": [
+        "ВОДА-ВОДА-ВОДА... морс, морс, сок, пиво... пиво пьёт ТЕБЯ, понял-понял... стойка моя, стойка твоя, стойка наша-ихняя...",
+        "Чем дороже напиток, тем громче он шепчет... шё-шё-шёпот... я не обернусь. НЕ ОБОРНУСЬ. Торгуй быстро и не дыши влево.",
+    ],
+    "zoran": [
+        "Металлы шепчут... шепчут... теперь они КРИЧАТ, и я кричу вместе с ними-нами-нами... жезл есть, клинок есть, ты есть — временно.",
+        "Имена прежних хозяев вышли из стали и ходят по лавке... стучат... ОДЕЯНИЯ ВИСЯТ СПРАВА. Не оглядывайся на кристаллы.",
+    ],
+    "gura": [
+        "Мясо зрело во тьме, тьма зреет в мясе, я зрею... в... мя-мя-мясе... окорок готов. Готов готов готов. Ты готов?",
+        "Ножи видели. Ножи всё видели-видели-видели... ящики шепчут рецепты убийств... еда ещё еда. Пока еда. ЕШЬ.",
+    ],
+    "viras": [
+        "Горн дышит... дышит... я в горн дышу и вижу пламя-пламя-ПЛАМЯ... оно видело край мира и вернулось злым... сталь есть. Сталь СМОТРИТ.",
+        "Меч-меч-меч... большой меч-меч... каждый удар уже вбит в тебя, понял-понял... латами не закроешься. Но латами можно ТОРГОВАТЬ.",
+    ],
+}
+
+## Шаг 24 (п.9): ФИНАЛ. После победы над Шуб-Ниггурат все NPC мертвы,
+## кроме Лир: это был её план. Она — Королева ночи, пятый (последний) босс.
+const QUEEN_ID := "lira"
+const QUEEN_NAME := "Лира"
+const QUEEN_TITLE := "Королева ночи"
+## Шаг 25: Королева усилена (было 520 — умирала с 1–2 ударов эндгейм-героя).
+const QUEEN_HP := 850
+const QUEEN_DAMAGE := 16
+const QUEEN_SPEED := 62.0          # ниже героя (95) — убежать можно
+const QUEEN_ATTACK_RANGE := 30.0
+const QUEEN_ATTACK_CD := 1.1
+const QUEEN_TINT := Color(0.62, 0.5, 0.95)
+const QUEEN_ENRAGE_HINT := "Лира смеётся — и смех разворачивает ночь. КОРОЛЕВА НОЧИ встаёт против тебя!"
+const QUEEN_CONFESSION := [
+    "Ты вернулся. Конечно, вернулся: четыре двери, четыре хозяина — и все легли под твой клинок. Ты хорош, смертный. Ты лучший из всех, кого я растила.",
+    "Ты растил меня. Каждое подземелье, каждый убитый хозяин, каждый шаг в тьму — это была МОЯ сцена, и ты играл на ней безупречно.",
+    "Ктулху спал под моим замком. Демоны ползали по моим стенам. Культ пел мне с пола. Ты думал, замок плывёт по Пустоте? Пустота плывёт вокруг меня.",
+    "Я — Королева ночи. План почти завершён: остался один инструмент, который знает слишком много. Поклонись своему хозяину — или станешь пятой дверью в моей коллекции.",
+]
+const QUEEN_ENRAGE_LINES := [
+    "Прекрасно. Инструмент взбунтовался — так даже интереснее.",
+    "Ночь у меня под пятой, смертный. И под твоей тоже.",
+    "Падай. Королеве не нужны свидетели.",
+]
+## Текст концовки (шаг 24, п.9): после победы над Королевой ночи.
+const ENDING_TITLE := "КОНЕЦ ИГРЫ"
+const ENDING_TEXT := "Королева ночи развеялась по стелам замка, и Пустота впервые за тысячу лет промолчала. Двери четырёх подземелий стали просто дверями. Замок плывёт дальше — теперь уже просто по небу, без чужих глаз с юга. Ты выиграл у космоса один матч: он запомнит твоё имя до следующего игрока."
+const ENDING_BUTTON := "В ГЛАВНОЕ МЕНЮ"
+## Шаг 24 (п.1): космос на юге жутчеет с каждым пройденным данжем.
+## tint — затемнение южных рядов, eyes — сколько глаз смотрит из тьмы,
+## hint — текст края мира на этой стадии.
+const COSMOS_DREAD: Array[Dictionary] = [
+    {"tint": Color(0.10, 0.02, 0.16, 0.0), "eyes": 0,
+     "hint": "Край мира. Дальше — безграничный космос. Он давно смотрит в ответ, и тебе уже кажется, что ты узнал этот взгляд."},
+    {"tint": Color(0.10, 0.02, 0.16, 0.22), "eyes": 2,
+     "hint": "Край мира. Космос присел ближе: между звёздами проступили глаза. Ты уже проникал в его жильё — теперь он изучает твоё."},
+    {"tint": Color(0.16, 0.02, 0.10, 0.34), "eyes": 3,
+     "hint": "Край мира. Скит замолчал, и Пустота застраивала улицы южнее: глаза теперь не мигают, а моргают по очереди."},
+    {"tint": Color(0.20, 0.04, 0.05, 0.46), "eyes": 4,
+     "hint": "Край мира. Глубины дышат вверх: звёзды отодвинулись, чтобы не мешать. За оградой слышно, как растёт сад Древних."},
+    {"tint": Color(0.05, 0.0, 0.09, 0.58), "eyes": 6,
+     "hint": "Край мира. Космос больше не притворяется далёким: он прижался к ограде и смотрит одним взглядом из всех глаз сразу."},
+]
+## Цвет мутации жителей (шаг 24, п.8): болезненный зелёно-лиловый.
+const MUTATION_TINT := Color(0.72, 0.95, 0.78)
 
 var _ground: TileMapLayer
 var _entities: Node2D
@@ -316,6 +441,13 @@ var _death_layer: CanvasLayer = null     # затемнение «ТЫ ПАЛ» 
 var _weapon_tex_cache := {}              # иконки оружия для видимого взмаха
 var _slash_tex: Texture2D = null
 var _level_layer: CanvasLayer = null
+## Шаг 24: космос-юг, мутация и финал.
+var _cosmos_overlay: ColorRect = null    # затемнение южных рядов (жутчеет)
+var _cosmos_eyes: Array = []             # глаза из тьмы (пульсируют)
+var _ending_layer: CanvasLayer = null    # экран «КОНЕЦ ИГРЫ»
+var _ending_shown := false
+## Королева ночи (шаг 24): запись NPC Лир в режиме финального босса.
+var _queen_confession_done := false
 
 func _ready() -> void:
     _shadow_tex = load("res://assets/sprites/props/shadow.png")
@@ -324,6 +456,7 @@ func _ready() -> void:
     get_viewport().size_changed.connect(_resize_layout)
     _build_walk_screen()
     _build_background()
+    _build_cosmos_dread()
     _build_tiles()
     _build_entities()
     _build_props()
@@ -333,6 +466,10 @@ func _ready() -> void:
     _build_hud()
     _build_joystick()
     _build_death_ui()
+    _build_ending_ui()
+    # шаг 24: мутация/финал/космос по прогрессу — ПОСЛЕ HUD (подсказки
+    # финала пишутся в _hud_hint) и ПОСЛЕ диалога (Королева использует его)
+    _apply_world_state()
     # шаг 8/9/13: демон следит за убийствами и выходит из теней строго после
     # первой жертвы — но только если он ещё не повержен навсегда.
     Game.npc_killed.connect(_on_npc_killed)
@@ -401,11 +538,11 @@ func _disconnect_cb(sig: Signal, cb: Callable) -> void:
 
 # ----------------------------------------------------------- экран ходьбы
 
-## Шаг 10/11: мир живёт в SubViewport 360xWALK_H, вставленном контейнером в
-## верхнюю часть экрана. Вся нижняя полоса отдана консоли UI, поэтому
+## Шаг 10/11: мир живёт в SubViewport (ширина окна минус консоль UI),
+## вставленном в верхнюю часть экрана. Нижняя полоса отдана консоли UI, поэтому
 ## интерфейс физически не может перекрыть окружение. Клики по NPC и
 ## дверям работают внутри SubViewport: physics_object_picking включён,
-## ввод в него пробрасывает SubViewportContainer (область 360xWALK_H).
+## ввод в него пробрасывает SubViewportContainer.
 ## The container routes mapped mouse commands via gui_input; Area2D keeps LMB picking.
 func _build_walk_screen() -> void:
     var holder := SubViewportContainer.new()
@@ -441,7 +578,8 @@ func _build_background() -> void:
     ]:
         var layer := ParallaxLayer.new()
         layer.motion_scale = config["scale"]
-        layer.motion_mirroring = Vector2(360, 640)
+        # шаг 25: звёзды тайлятся по размеру вьюпорта (ПК: 960x540 и шире)
+        layer.motion_mirroring = get_viewport_rect().size
         var spr := Sprite2D.new()
         spr.texture = load(config["tex"])
         spr.centered = false
@@ -838,6 +976,10 @@ func npc_say(npc_id: String) -> void:
             return
         var data: Dictionary = npc["data"]
         _dialogue_npc = data
+        # Шаг 24 (п.9): в финале Лира — Королева ночи: разговор = признание.
+        if Game.finale_active() and String(npc_id) == QUEEN_ID:
+            _talk_queen()
+            return
         var lines: Array
         var goods: Array
         if bool(data.get("demon", false)):
@@ -860,7 +1002,15 @@ func npc_say(npc_id: String) -> void:
                 lines = _demon_lines()
                 goods = Game.demon_goods()
         else:
-            lines = NPC_LINES.get(npc_id, ["..."])
+            # Шаг 24 (п.8): мутант говорит бред (и торгует — дороже);
+            # иначе обычные реплики + реакция на пройденный данж (п.1)
+            if Game.mutation_active():
+                lines = _mad_lines(npc_id)
+            else:
+                lines = (NPC_LINES.get(npc_id, ["..."]) as Array).duplicate()
+                var reaction := _dungeon_reaction(npc_id)
+                if not reaction.is_empty():
+                    lines.push_front(reaction)
             if not Game.dead_npcs.is_empty():
                 # шаг 8: старые диалоги больше не появятся — только память
                 # об убийстве; торговцы отказываются торговать с убийцей
@@ -870,15 +1020,34 @@ func npc_say(npc_id: String) -> void:
                 # шаг 22: прилавок = базовый товар + то, что герой продал
                 # торговцу этого профиля (смотря что это и какой торговец)
                 goods = Game.merchant_goods(String(data.get("id", "")))
+        var role_text := String(data["role"])
+        if Game.mutation_active() and not bool(data.get("demon", false)):
+            role_text = "мутант"
+        if Game.finale_active() and String(npc_id) == QUEEN_ID:
+            role_text = QUEEN_TITLE
         _dialogue.open({
             "name": data["name"],
-            "role": data["role"],
+            "role": role_text,
             "portrait": data["portrait"],
             "lines": lines,
             "goods": goods,
         })
         (npc["sprite"] as AnimatedSprite2D).play("idle_down")
         return
+
+## Бред замутанта (шаг 24, п.8): две реплики из NPC_MAD_LINES.
+func _mad_lines(npc_id: String) -> Array:
+    var lines: Array = NPC_MAD_LINES.get(npc_id,
+        ["МЫ... МЫ... МЫ... торг... торг...", "Пустота говорит твоим ртом."])
+    return (lines as Array).duplicate()
+
+## Реакция NPC на последний пройденный данж (шаг 24, п.1): пусто — реакции нет.
+func _dungeon_reaction(npc_id: String) -> String:
+    var cleared := Game.last_cleared_dungeon()
+    if cleared.is_empty() or Game.dungeon_4_open() or Game.finale_active():
+        return ""
+    var per_npc: Dictionary = NPC_DUNGEON_REACTIONS.get(cleared, {})
+    return String(per_npc.get(npc_id, ""))
 
 ## Реплики живого NPC про убитых героем: имена подставляются
 ## в винительном падеже (см. NPC_VICTIM_ACC).
@@ -920,10 +1089,287 @@ func _on_trade_requested() -> void:
 ## на E, чтобы то же нажатие не переоткрыло диалог (фикс мигания).
 func _on_dialogue_closed() -> void:
     _dialogue_closed_at = Time.get_ticks_msec()
+    # Шаг 24 (п.9): Королева закончила признание — начинается финальный бой.
+    if _queen_confession_done and not Game.queen_hostile:
+        _queen_enrage()
 
 ## Разрешено ли сейчас взаимодействие E (вне кулдауна после закрытия диалога).
 func _interact_allowed() -> bool:
     return Time.get_ticks_msec() - _dialogue_closed_at > 250
+
+# ----------------------------------- мутация, финал, космос (шаг 24)
+
+## Состояние мира по прогрессу: мутация NPC, финал, жуть космоса.
+func _apply_world_state() -> void:
+    _refresh_cosmos()
+    if Game.finale_active():
+        _begin_finale()
+    elif Game.mutation_active():
+        _apply_mutation()
+
+## Шаг 24 (п.8): жители мутируют — больной цвет, дрожь, ярлык «мутант».
+func _apply_mutation() -> void:
+    for npc in _npcs:
+        if bool(npc.get("dead", false)):
+            continue
+        var node: Node2D = npc["node"]
+        var data: Dictionary = npc["data"]
+        var spr: AnimatedSprite2D = npc["sprite"]
+        if bool(data.get("demon", false)):
+            spr.modulate = Color(0.9, 0.4, 0.7)
+        else:
+            spr.modulate = MUTATION_TINT
+            var label: Label = npc["name_label"]
+            label.text = "%s · мутант" % String(data.get("name", npc["id"]))
+            label.add_theme_color_override("font_color",
+                Color(0.75, 0.95, 0.78))
+        # дрожь: мелкое дёрганое покачивание, мутантов тянет
+        var tw := node.create_tween().set_loops()
+        tw.tween_property(spr, "offset",
+            Vector2(randf_range(-0.7, 0.7), randf_range(-0.4, 0.4)),
+            0.12).set_delay(randf_range(0.0, 0.3))
+        tw.tween_property(spr, "offset", Vector2.ZERO, 0.1)
+
+## Шаг 24 (п.9): ФИНАЛ — все NPC мертвы, кроме Лир: Королевы ночи.
+func _begin_finale() -> void:
+    for npc in _npcs:
+        if String(npc["id"]) == QUEEN_ID or bool(npc.get("dead", false)):
+            continue
+        _make_corpse(npc)
+    var queen := _queen_record()
+    if queen.is_empty():
+        return
+    var data: Dictionary = queen["data"]
+    queen["queen"] = true
+    queen["hp"] = QUEEN_HP
+    queen["max_hp"] = QUEEN_HP
+    (queen["node"] as Node2D).modulate = Color(1, 1, 1)
+    var spr: AnimatedSprite2D = queen["sprite"]
+    spr.modulate = Color(1, 1, 1)
+    var label: Label = queen["name_label"]
+    label.text = "%s · %s" % [QUEEN_NAME, QUEEN_TITLE]
+    label.add_theme_color_override("font_color", Color(0.7, 0.55, 1.0))
+    # лёгкая тёмная аура вокруг Королевы
+    var aura := Sprite2D.new()
+    aura.name = "QueenAura"
+    aura.texture = load("res://assets/sprites/props/glow.png")
+    var mat := CanvasItemMaterial.new()
+    mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+    aura.material = mat
+    aura.modulate = Color(0.3, 0.15, 0.45, 0.4)
+    aura.scale = Vector2(3.4, 3.4)
+    aura.position = Vector2(0, -40)
+    (queen["node"] as Node2D).add_child(aura)
+    _show_hint("Замок молчит. Все, кроме Лир, — нет. Она стоит среди тишины и ждёт твоих шагов.", 6.0)
+
+## Труп NPC без записи об убийстве (шаг 24): житель умер «сам» — это финал,
+## а не бойня героя, поэтому Game.kill_npc не вызывается.
+func _make_corpse(npc: Dictionary) -> void:
+    npc["dead"] = true
+    var spr: AnimatedSprite2D = npc["sprite"]
+    var flash: Tween = npc.get("flash_tween")
+    if flash != null and flash.is_valid():
+        flash.kill()
+    spr.stop()
+    spr.rotation = PI / 2.0
+    spr.modulate = Color(0.42, 0.4, 0.5)
+    (npc["hp_bar"] as ProgressBar).visible = false
+    (npc["pointer"] as Sprite2D).visible = false
+    (npc["name_label"] as Label).add_theme_color_override("font_color",
+        Color(0.4, 0.4, 0.46))
+    var body: StaticBody2D = npc["body"]
+    (body.get_child(0) as CollisionShape2D).set_deferred("disabled", true)
+    var area: Area2D = npc["area"]
+    area.set_deferred("monitorable", false)
+    area.set_deferred("monitoring", false)
+    area.input_pickable = false
+
+## Запись Королевы (живая Лира в финале; пусто — финал не начат/она мертва).
+func _queen_record() -> Dictionary:
+    if not Game.finale_active():
+        return {}
+    for npc in _npcs:
+        if String(npc["id"]) == QUEEN_ID and not bool(npc.get("dead", false)):
+            return npc
+    return {}
+
+## Признание Королевы (шаг 24, п.9): после диалога — бой.
+func _talk_queen() -> void:
+    _queen_confession_done = true
+    var queen := _queen_record()
+    var lines: Array = QUEEN_ENRAGE_LINES.duplicate() \
+        if Game.queen_hostile else QUEEN_CONFESSION.duplicate()
+    _dialogue.open({
+        "name": QUEEN_NAME,
+        "role": QUEEN_TITLE,
+        "portrait": "res://assets/sprites/portraits/queen_night.png",
+        "lines": lines,
+    })
+
+## Королева вошла в бой: тёмная форма, рёв, подсказка.
+func _queen_enrage() -> void:
+    var queen := _queen_record()
+    if queen.is_empty():
+        return
+    Game.queen_hostile = true
+    (queen["sprite"] as AnimatedSprite2D).modulate = QUEEN_TINT
+    var node: Node2D = queen["node"]
+    _spell_poof(node.position + Vector2(0, -46), Color(0.4, 0.2, 0.7))
+    _spawn_hit_impact(node.position + Vector2(0, -40), Color(0.7, 0.4, 1.0))
+    Sfx.play("roar")
+    _show_hint(QUEEN_ENRAGE_HINT, 5.0)
+
+## ИИ Королевы ночи (шаг 24): как разъярённый демон, но злее — Квинн
+## преследует и бьёт тёмными когтями. Атака идёт и при открытых окнах.
+func _update_queen(delta: float) -> void:
+    if player == null or not Game.queen_hostile or Game.hp <= 0:
+        return
+    var queen := _queen_record()
+    if queen.is_empty():
+        return
+    var node: Node2D = queen["node"]
+    var spr: AnimatedSprite2D = queen["sprite"]
+    if int(queen.get("blind_until", 0)) > Time.get_ticks_msec():
+        spr.play("idle_down")
+        return
+    var to := player.position - node.position
+    queen["atk_cd"] = maxf(0.0, float(queen.get("atk_cd", 0.0)) - delta)
+    if to.length() > QUEEN_ATTACK_RANGE * 0.8:
+        var dirv := to.normalized()
+        var step := QUEEN_SPEED * delta
+        var nx := node.position + Vector2(dirv.x, 0.0) * step
+        if not _tile_is_solid(nx):
+            node.position.x = nx.x
+        var ny := node.position + Vector2(0.0, dirv.y) * step
+        if not _tile_is_solid(ny):
+            node.position.y = ny.y
+        if absf(dirv.x) >= absf(dirv.y):
+            spr.play("walk_side")
+            spr.flip_h = dirv.x < 0.0
+        else:
+            spr.play("walk_down" if dirv.y > 0.0 else "walk_up")
+    else:
+        spr.play("idle_down")
+    if to.length() <= QUEEN_ATTACK_RANGE and float(queen.get("atk_cd", 0.0)) <= 0.0:
+        queen["atk_cd"] = QUEEN_ATTACK_CD
+        Game.damage_hp(QUEEN_DAMAGE)
+        Sfx.play("hurt")
+        _spawn_swing(player.position + Vector2(0, -10), Color(0.5, 0.25, 0.8))
+        _spawn_damage_label(player.position + Vector2(0, -40), QUEEN_DAMAGE)
+        _spell_poof(player.position + Vector2(0, -14), Color(0.45, 0.2, 0.65))
+        _spawn_hit_impact(player.position + Vector2(0, -14), Color(0.6, 0.3, 0.9))
+
+## Королева повержена: сейв v8, концовка.
+func _kill_queen(npc: Dictionary) -> void:
+    _make_corpse(npc)
+    _spell_poof((npc["node"] as Node2D).position + Vector2(0, -30),
+        Color(0.55, 0.35, 0.9))
+    Game.slay_queen()
+    Sfx.play("die")
+    _show_hint("Королева ночи развеялась по стелам. Пустота впервые за тысячу лет промолчала.", 6.0)
+    _show_ending()
+
+## Экран «КОНЕЦ ИГРЫ» (шаг 24): затемнение, текст, выход в меню.
+func _build_ending_ui() -> void:
+    _ending_layer = CanvasLayer.new()
+    _ending_layer.name = "EndingOverlay"
+    _ending_layer.layer = 40
+    _ending_layer.visible = false
+    add_child(_ending_layer)
+    var dim := ColorRect.new()
+    dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+    dim.color = Color(0.02, 0.01, 0.05, 0.9)
+    _ending_layer.add_child(dim)
+    var center := CenterContainer.new()
+    center.set_anchors_preset(Control.PRESET_FULL_RECT)
+    center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    dim.add_child(center)
+    var panel := PanelContainer.new()
+    panel.custom_minimum_size = Vector2(320, 0)
+    panel.add_theme_stylebox_override("panel", UiStyle.panel_style())
+    center.add_child(panel)
+    var vbox := VBoxContainer.new()
+    vbox.add_theme_constant_override("separation", 10)
+    panel.add_child(vbox)
+    var title := Label.new()
+    title.text = ENDING_TITLE
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    title.add_theme_font_size_override("font_size", 24)
+    title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.3))
+    vbox.add_child(title)
+    var body := Label.new()
+    body.text = ENDING_TEXT
+    body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    body.add_theme_font_size_override("font_size", 11)
+    body.add_theme_color_override("font_color", Color(0.72, 0.75, 0.84))
+    vbox.add_child(body)
+    var btn := Button.new()
+    btn.text = ENDING_BUTTON
+    btn.custom_minimum_size = Vector2(0, 38)
+    UiStyle.style_button(btn, 13)
+    btn.pressed.connect(_on_ending_menu_pressed)
+    vbox.add_child(btn)
+
+## Показать концовку (с паузой на пепел Королевы).
+func _show_ending() -> void:
+    if _ending_shown:
+        return
+    _ending_shown = true
+    var tw := create_tween()
+    tw.tween_interval(1.6)
+    tw.tween_callback(func() -> void:
+        if _ending_layer != null:
+            _ending_layer.visible = true)
+
+func _on_ending_menu_pressed() -> void:
+    Platform.gameplay_stop()
+    get_tree().change_scene_to_file(MAIN_SCENE)
+
+# ---------------------------------------------------------------- космос-юг (шаг 24)
+
+## Затемнение южных рядов (за оградой) + глаза, смотрящие из тьмы.
+## Ярость космоса растёт с каждым пройденным подземельем (_refresh_cosmos).
+func _build_cosmos_dread() -> void:
+    _cosmos_overlay = ColorRect.new()
+    _cosmos_overlay.name = "CosmosDread"
+    _cosmos_overlay.position = Vector2(0, WorldMap.RAILING_ROW * 16.0)
+    _cosmos_overlay.size = Vector2(WorldMap.MAP_W * 16.0,
+        (WorldMap.MAP_H - WorldMap.RAILING_ROW) * 16.0)
+    _cosmos_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _world.add_child(_cosmos_overlay)
+    # глаза: шести «наблюдателей» расставим по югу один раз
+    var eye_positions := [
+        Vector2(4, 48), Vector2(13, 50), Vector2(23, 49),
+        Vector2(8, 53), Vector2(19, 54), Vector2(26, 52),
+    ]
+    for tile in eye_positions:
+        var eye := Sprite2D.new()
+        eye.texture = load("res://assets/sprites/props/glow.png")
+        var mat := CanvasItemMaterial.new()
+        mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+        eye.material = mat
+        eye.position = Vector2(tile.x * 16.0 + 8.0, tile.y * 16.0 + 8.0)
+        eye.scale = Vector2(0.9, 0.55)
+        eye.modulate = Color(0.75, 0.2, 0.5, 0.0)
+        _world.add_child(eye)
+        var tw := eye.create_tween().set_loops()
+        tw.tween_property(eye, "modulate:a", 0.8, randf_range(1.0, 1.8)) \
+            .set_trans(Tween.TRANS_SINE)
+        tw.tween_property(eye, "modulate:a", 0.25, randf_range(0.8, 1.4)) \
+            .set_trans(Tween.TRANS_SINE)
+        _cosmos_eyes.append(eye)
+
+## Пересчитать жуть космоса по числу пройденных подземелий.
+func _refresh_cosmos() -> void:
+    if _cosmos_overlay == null:
+        return
+    var stage := clampi(Game.dungeons_cleared.size(), 0,
+        COSMOS_DREAD.size() - 1)
+    var cfg: Dictionary = COSMOS_DREAD[stage]
+    _cosmos_overlay.color = cfg["tint"]
+    for i in range(_cosmos_eyes.size()):
+        var eye: Sprite2D = _cosmos_eyes[i]
+        eye.visible = i < int(cfg["eyes"])
 
 # ---------------------------------------------------------------- двери данжей
 
@@ -1004,6 +1450,18 @@ func _open_door_dialog(door_id: String = "") -> void:
             "role": DOOR3_ROLE,
             "portrait": "res://assets/sprites/portraits/door.png",
             "lines": DOOR3_LOCKED_LINES,
+        })
+        return
+    if door_id == "dungeon_4":
+        # шаг 24: Логово Древних — после победы над Ктулху; финал сюжета
+        if Game.dungeons_cleared.has("dungeon_3"):
+            _begin_dungeon_transition("dungeon_4")
+            return
+        _dialogue.open({
+            "name": DOOR4_NAME,
+            "role": DOOR4_ROLE,
+            "portrait": "res://assets/sprites/portraits/door.png",
+            "lines": DOOR4_LOCKED_LINES,
         })
         return
     _dialogue.open({
@@ -1094,7 +1552,11 @@ func _physics_process(delta: float) -> void:
         player.move_and_slide()
         if not _edge_hint_shown and player.position.y > 43.0 * WorldMap.TILE_SIZE:
             _edge_hint_shown = true
-            _show_hint(EDGE_HINT, 4.5)
+            # шаг 24: текст края мира зависит от того, сколько данжей
+            # пройдено — космос каждый раз другой
+            var stage := clampi(Game.dungeons_cleared.size(), 0,
+                COSMOS_DREAD.size() - 1)
+            _show_hint(String(COSMOS_DREAD[stage]["hint"]), 5.0)
     else:
         player.velocity = Vector2.ZERO
     # шаг 6: мана мага — кулдаун заклинания, реген, полёт снарядов
@@ -1127,6 +1589,8 @@ func _physics_process(delta: float) -> void:
     _update_pointers()
     # шаг 12: разъярённый демон охотится на героя
     _update_demon(delta)
+    # шаг 24: Королева ночи охотится на героя (финал)
+    _update_queen(delta)
 
 ## Шаг 12: ИИ разъярённого демона. Демон парит к герою (стены и ограда
 ## его держат — точки-проверки по тайлам), а вплотную бьёт когтями:
@@ -1274,7 +1738,8 @@ func _unhandled_input(event: InputEvent) -> void:
     _handle_gameplay_input(event)
 
 func _gameplay_input_blocked() -> bool:
-    return _player_dead or _dialogue.visible or _inventory_ui.visible or _trade_ui.visible
+    return _player_dead or _dialogue.visible or _inventory_ui.visible \
+        or _trade_ui.visible or _ending_shown
 
 func _handle_gameplay_input(event: InputEvent, walk_position: Vector2 = Vector2.INF) -> void:
     if _player_dead:
@@ -2046,6 +2511,9 @@ func _hit_npc(npc: Dictionary, damage: int) -> void:
             var idx := count - 1
             if idx >= 0 and idx < DEMON_HIT_HINTS.size():
                 _show_hint(String(DEMON_HIT_HINTS[idx]), 2.2)
+    elif bool(npc.get("queen", false)):
+        # Шаг 24: Королева бьётся по-настоящему — полоска хп над ней
+        _show_npc_hp_bar(npc)
 
 ## Ближайший живой NPC перед героем (в дуге взгляда).
 func _living_npc_in_front(dir: Vector2) -> Dictionary:
@@ -2235,6 +2703,10 @@ func _show_npc_hp_bar(npc: Dictionary) -> void:
 ## (ни у края мира, ни в подземелье), состояние пишется в сейв v6.
 func _kill_npc(npc: Dictionary) -> void:
     var npc_id := String(npc["id"])
+    # Шаг 24: Королева ночи умирает по-своему — концовка (не «бойня NPC»).
+    if bool(npc.get("queen", false)):
+        _kill_queen(npc)
+        return
     npc["dead"] = true
     Game.kill_npc(npc_id)
     var npc_name := String((npc["data"] as Dictionary).get("name", npc_id))
@@ -2271,6 +2743,8 @@ func _kill_npc(npc: Dictionary) -> void:
 ## хп восстанавливается, разговоры и торговля снова доступны.
 ## Труп самого демона остаётся трупом — он повержен навсегда.
 func _revive_npcs_in_world() -> void:
+    if Game.finale_active() or Game.queen_slain:
+        return   # шаг 24: в финале замок мёртв навсегда — воскрешения нет
     for npc in _npcs:
         if String(npc["id"]) == "demon" or not bool(npc.get("dead", false)):
             continue
@@ -2325,7 +2799,7 @@ func _on_level_up(new_level: int) -> void:
     tw.tween_interval(1.4)
     tw.tween_property(label, "modulate:a", 0.0, 0.5)
     tw.tween_callback(func() -> void: center.queue_free())
-    _show_hint("Уровень %d: урон и ХП выросли вдвое!" % new_level, 3.0)
+    _show_hint("Уровень %d: урон и ХП выросли на 35%%!" % new_level, 3.0)
 
 ## Полоса опыта в HUD — по сигналу Game.xp_changed.
 func _on_xp_changed(xp_value: int, xp_need: int) -> void:
@@ -2336,6 +2810,10 @@ func _on_xp_changed(xp_value: int, xp_need: int) -> void:
 # ---------------------------------------------------------------- джойстик
 
 func _build_joystick() -> void:
+    # шаг 25: игра переведена на ПК — экранный джойстик нужен только на
+    # сенсорных экранах; на десктопе управление с клавиатуры и мыши.
+    if not DisplayServer.is_touchscreen_available():
+        return
     # шаг 8 (фикс): VirtualJoystick — скриптовый класс, ClassDB его не видит
     # (class_exists всегда false), поэтому джойстик никогда не спавнился.
     # Загружаем скрипт напрямую и создаём инстанс через GDScript.new().
@@ -2357,8 +2835,8 @@ func _build_joystick() -> void:
 # ---------------------------------------------------------------- смерть героя (шаг 12)
 
 ## Экран смерти: затемнение поверх всего («ТЫ ПАЛ») с кнопкой пробуждения.
-## Штрафов за смерть нет (ЗАГЛУШКА): герой очинается в замке с полными
-## хп/маной, демон остаётся в ярости и продолжает охоту.
+## Штрафов за смерть нет (подтверждено, шаг 25): герой очнётся в замке
+## с полными хп/маной; шаг 13: ярость демона при возрождении гаснет.
 func _build_death_ui() -> void:
     _death_layer = CanvasLayer.new()
     _death_layer.name = "DeathOverlay"
@@ -2456,7 +2934,9 @@ func _build_hud() -> void:
 
     # мини-панель героя: портрет + имя + золото (в консоли, шаг 10)
     var hero_panel := PanelContainer.new()
-    hero_panel.position = Vector2(BAR_HERO_POS.x, bar_top + BAR_HERO_POS.y)
+    # шаг 25: на ПК джойстика нет — панель героя прижата к левому краю консоли
+    var hero_x := BAR_HERO_POS.x if DisplayServer.is_touchscreen_available() else 8.0
+    hero_panel.position = Vector2(hero_x, bar_top + BAR_HERO_POS.y)
     var hero_style := UiStyle.flat_style(Color(0.11, 0.12, 0.19), Color(0.5, 0.42, 0.16))
     hero_style.content_margin_left = 6
     hero_style.content_margin_right = 10
@@ -2613,6 +3093,8 @@ func _weapon_text() -> String:
     return "В руках: %s · %d ур." % [Game.strike_title(), Game.strike_damage()]
 
 func _show_hint(text: String, seconds: float) -> void:
+    if _hud_hint == null:
+        return   # шаг 24: HUD ещё не собран — подсказку молча пропускаем
     # фикс: предыдущий твин подсказки гасим, чтобы два твина не мигали в борьбе
     if _hint_tween != null and _hint_tween.is_valid():
         _hint_tween.kill()

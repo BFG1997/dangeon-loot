@@ -11,6 +11,8 @@
 ## Шаг 8: лавка демона — trader содержит "demon": true. Ассортимент —
 ## товары павших торговцев, цены со скидкой Game.demon_discount_pct()
 ## (-10% за каждого убитого NPC): покупка через Game.buy_from_demon().
+## Шаг 24 (мутация): когда открыт последний данж, все NPC замутантов и
+## торгуют ДОРОЖЕ (+50% — Game.npc_buy_price). Демон не мутирует.
 class_name TradeUI
 extends CanvasLayer
 
@@ -179,6 +181,8 @@ func _refresh() -> void:
     if _tab == "buy":
         if _is_demon:
             _hint_label.text = "Лавка демона: скидка %d%% — минус 10%% за каждого убитого жителя. Товары павших торговцев. Запас бесконечен." % Game.demon_discount_pct()
+        elif Game.mutation_active():
+            _hint_label.text = "Торговец замутился: он говорит на языке, которого нет, но торгует — ДОРОЖЕ на 50%%. Пустота забирает свою долю. Продажа своих вещей — за половину цены."
         else:
             _hint_label.text = "Запас лавки бесконечен, а прилавок растёт: продал торговцу оружие, броню или еду — он теперь сам это продаёт. Продажа своих вещей — за половину цены."
         var goods: Array = _trader.get("goods", [])
@@ -215,9 +219,14 @@ func _make_buy_row(item_id: String) -> Control:
     var row := _row_base()
     _row_icon(row, ItemDB.icon(item_id))
     _row_info(row, ItemDB.title(item_id), ItemDB.desc(item_id))
-    var price := Game.demon_price(item_id) if _is_demon else ItemDB.price(item_id)
+    # Шаг 24: у обычного торговца цена через Game.npc_buy_price —
+    # мутант торгует дороже (+50%), у демона своя скидка (не менялась).
+    var price := Game.demon_price(item_id) if _is_demon \
+        else Game.npc_buy_price(item_id)
     var price_label := Label.new()
     if _is_demon and price < ItemDB.price(item_id):
+        price_label.text = "%d з. (было %d)" % [price, ItemDB.price(item_id)]
+    elif not _is_demon and price > ItemDB.price(item_id):
         price_label.text = "%d з. (было %d)" % [price, ItemDB.price(item_id)]
     else:
         price_label.text = "%d з." % price

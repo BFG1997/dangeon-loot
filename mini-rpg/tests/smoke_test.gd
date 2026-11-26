@@ -80,11 +80,18 @@ func _ready() -> void:
     Game.set_setting("sound", true)
 
     # --- герои и новая игра ---
-    check("HEROES: четыре героя", Game.HEROES.size() == 4 \
+    check("HEROES: шесть героев (шаг 31 добавил Демоноолога и Некроманта)",
+        Game.HEROES.size() == 6 \
         and Game.HEROES.has("warrior") and Game.HEROES.has("barbarian") \
-        and Game.HEROES.has("bum") and Game.HEROES.has("mage"))
+        and Game.HEROES.has("bum") and Game.HEROES.has("mage") \
+        and Game.HEROES.has("demonologist") and Game.HEROES.has("necromancer"))
     check("маг: хп 30 и мана 70 (числа автора)", \
         Game.hero_max_hp("mage") == 30 and Game.hero_max_mana("mage") == 70)
+    check("колдуны шага 31: хп/мана/золото", \
+        Game.hero_max_hp("demonologist") == 22 and Game.hero_max_mana("demonologist") == 60 \
+        and Game.hero_max_hp("necromancer") == 38 and Game.hero_max_mana("necromancer") == 90 \
+        and Game.hero_start_gold("demonologist") == 45 \
+        and Game.hero_start_gold("necromancer") == 55)
     check("стартовое золото: воин 100, варвар 50, бомж 1", \
         Game.hero_start_gold("warrior") == 100 and Game.hero_start_gold("barbarian") == 50 \
         and Game.hero_start_gold("bum") == 1)

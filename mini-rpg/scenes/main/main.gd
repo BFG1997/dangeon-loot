@@ -1,5 +1,5 @@
-## Главное меню. Тап по сундуку «выбрасывает» из него пункты меню
-## один за другим: Начать игру, Настройки, Авторы, Бонус.
+## Главное меню. Тап по сундуку «выбрасывает» из него ВСЕ пункты меню
+## один за другим, быстро и плавно: Начать игру, Настройки, Авторы.
 ## «Начать игру» открывает выбор: Новая игра / Продолжить / Загрузить.
 extends Control
 
@@ -7,16 +7,28 @@ const MENU_ITEMS: Array[Dictionary] = [
     {"id": "start", "text": "НАЧАТЬ ИГРУ"},
     {"id": "settings", "text": "НАСТРОЙКИ"},
     {"id": "authors", "text": "АВТОРЫ"},
-    {"id": "bonus", "text": "БОНУС"},
 ]
 
 const BUTTON_SIZE := Vector2(240, 46)
 const BUTTON_GAP := 12
 const FIRST_SLOT_Y := 316.0
 const CHEST_OPEN_TEXTURE := preload("res://assets/sprites/chest_open.png")
-const COLOR_VIOLET := Color(0.702, 0.533, 1.0)
 const CHARACTER_SELECT_SCENE := "res://scenes/character_select/character_select.tscn"
 const WORLD_SCENE := "res://scenes/world/world.tscn"
+const DUNGEON_SCENE := "res://scenes/dungeon/dungeon.tscn"
+
+## Шаг 33: сейв помнит этаж подземелья — продолжаем с того же места
+## (в хабе — замок, в данже — тот этаж; раскладка этажа собирается заново).
+func _enter_saved_scene() -> void:
+    if Game.dungeon_floor >= 1:
+        get_tree().change_scene_to_file(DUNGEON_SCENE)
+    else:
+        get_tree().change_scene_to_file(WORLD_SCENE)
+
+## Каскад вылета пунктов (шаг 29, по просьбе автора): один тап по сундуку —
+## и все пункты выскакивают по очереди, быстро и с плавной дугой.
+const REVEAL_STAGGER := 0.09      # задержка между пунктами, сек
+const REVEAL_FLY_TIME := 0.34     # время полёта одного пункта, сек
 
 var revealed_count := 0
 var reset_armed := false
@@ -31,15 +43,12 @@ var reset_armed := false
 @onready var panel_layer: Control = $PanelLayer
 @onready var settings_panel: PanelContainer = $PanelLayer/Center/SettingsPanel
 @onready var authors_panel: PanelContainer = $PanelLayer/Center/AuthorsPanel
-@onready var bonus_panel: PanelContainer = $PanelLayer/Center/BonusPanel
 @onready var start_panel: PanelContainer = $PanelLayer/Center/StartPanel
 @onready var start_vbox: VBoxContainer = $PanelLayer/Center/StartPanel/VBox
 @onready var slots_box: VBoxContainer = $PanelLayer/Center/StartPanel/SlotsBox
 @onready var slots_list: VBoxContainer = $PanelLayer/Center/StartPanel/SlotsBox/SlotsList
 @onready var continue_button: Button = $PanelLayer/Center/StartPanel/VBox/ContinueButton
 @onready var start_hint: Label = $PanelLayer/Center/StartPanel/VBox/StartHint
-@onready var claim_button: Button = $PanelLayer/Center/BonusPanel/VBox/ClaimButton
-@onready var bonus_result: Label = $PanelLayer/Center/BonusPanel/VBox/ResultLabel
 @onready var sound_check: CheckButton = $PanelLayer/Center/SettingsPanel/VBox/SoundCheck
 @onready var music_check: CheckButton = $PanelLayer/Center/SettingsPanel/VBox/MusicCheck
 @onready var reset_button: Button = $PanelLayer/Center/SettingsPanel/VBox/ResetButton
@@ -69,8 +78,6 @@ func _ready() -> void:
     for button in [
         $PanelLayer/Center/SettingsPanel/VBox/CloseButton,
         $PanelLayer/Center/AuthorsPanel/VBox/CloseButton,
-        $PanelLayer/Center/BonusPanel/VBox/CloseButton,
-        $PanelLayer/Center/BonusPanel/VBox/ClaimButton,
         $PanelLayer/Center/StartPanel/VBox/NewGameButton,
         $PanelLayer/Center/StartPanel/VBox/ContinueButton,
         $PanelLayer/Center/StartPanel/VBox/LoadButton,
@@ -116,9 +123,10 @@ func _on_chest_gui_input(event: InputEvent) -> void:
     if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
         return
     if revealed_count == 0:
+        # первый тап: сундук распахивается и выплёвывает ВСЕ пункты —
+        # по очереди, быстро и плавно (шаг 29, по просьбе автора)
         _play_open_animation()
-    if revealed_count < MENU_ITEMS.size():
-        _reveal_next_item()
+        _reveal_all_items()
     else:
         _chest_bounce()
 
@@ -134,27 +142,45 @@ func _chest_bounce() -> void:
     tween.tween_property(chest, "scale", Vector2(1.15, 0.9), 0.06)
     tween.tween_property(chest, "scale", Vector2.ONE, 0.1)
 
-func _reveal_next_item() -> void:
-    var item: Dictionary = MENU_ITEMS[revealed_count]
+func _reveal_all_items() -> void:
+    var chest_center: Vector2 = chest.position + chest.size / 2.0
+    var master := create_tween()
+    for i in range(MENU_ITEMS.size()):
+        master.tween_callback(_spawn_menu_item.bind(i, chest_center)) \
+            .set_delay(i * REVEAL_STAGGER if i > 0 else 0.05)
+    revealed_count = MENU_ITEMS.size()
+    _update_hint()
+
+## Один пункт меню: рождается маленьким у сундука и летит в свой слот
+## по дуге — вверх-вбок, затем в цель; масштаб доводится пружинкой (BACK).
+func _spawn_menu_item(index: int, chest_center: Vector2) -> void:
+    var item: Dictionary = MENU_ITEMS[index]
     var button := _make_menu_button(item)
     buttons_layer.add_child(button)
     button.size = BUTTON_SIZE
     button.pivot_offset = BUTTON_SIZE / 2.0
-    var chest_center: Vector2 = chest.position + chest.size / 2.0
     button.position = chest_center - BUTTON_SIZE / 2.0
     button.scale = Vector2(0.15, 0.15)
     button.rotation = -0.3
     button.modulate.a = 0.0
-    var target := _slot_position(revealed_count)
-    var tween := button.create_tween()
+    var target := _slot_position(index)
+    # дуга: середина пути смещена вбок (пункты вылетают «веером»)
+    var side := 1.0 if index % 2 == 0 else -1.0
+    var mid := chest_center + Vector2(side * 52.0, -40.0) - BUTTON_SIZE / 2.0
+    var tween := create_tween()
     tween.set_parallel(true)
-    tween.tween_property(button, "position", target, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-    tween.tween_property(button, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-    tween.tween_property(button, "rotation", 0.0, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-    tween.tween_property(button, "modulate:a", 1.0, 0.2)
+    tween.tween_property(button, "modulate:a", 1.0, 0.12)
+    tween.tween_property(button, "position", mid, REVEAL_FLY_TIME * 0.45) \
+        .set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+    tween.tween_property(button, "scale", Vector2(1.06, 1.06), REVEAL_FLY_TIME * 0.45) \
+        .set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+    tween.chain().tween_property(button, "position", target, REVEAL_FLY_TIME * 0.55) \
+        .set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+    tween.parallel().tween_property(button, "scale", Vector2.ONE, REVEAL_FLY_TIME * 0.55) \
+        .set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+    tween.parallel().tween_property(button, "rotation", 0.0, REVEAL_FLY_TIME * 0.55) \
+        .set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
     sparkles.restart()
-    revealed_count += 1
-    _update_hint()
 
 func _slot_position(index: int) -> Vector2:
     var viewport_size := get_viewport_rect().size
@@ -171,17 +197,10 @@ func _make_menu_button(item: Dictionary) -> Button:
     return button
 
 func _update_hint() -> void:
-    match revealed_count:
-        0:
-            hint_label.text = "Кликни по сундуку!"
-        1:
-            hint_label.text = "Кликни ещё — будут настройки"
-        2:
-            hint_label.text = "Ещё раз — авторы!"
-        3:
-            hint_label.text = "Последний клик — бонус!"
-        _:
-            hint_label.text = "Приятной игры!"
+    if revealed_count == 0:
+        hint_label.text = "Кликни по сундуку!"
+    else:
+        hint_label.text = "Приятной игры!"
 
 # --- Действия меню ---
 
@@ -193,8 +212,6 @@ func _on_menu_button(id: String) -> void:
             _show_panel(settings_panel)
         "authors":
             _show_panel(authors_panel)
-        "bonus":
-            _show_panel(bonus_panel)
 
 # --- Панель старта: Новая игра / Продолжить / Загрузить ---
 
@@ -213,7 +230,7 @@ func _on_new_game_pressed() -> void:
 func _on_continue_pressed() -> void:
     var slot := int(Game.meta.get("last_slot", 0))
     if slot >= 1 and Game.continue_run(slot):
-        get_tree().change_scene_to_file(WORLD_SCENE)
+        _enter_saved_scene()
 
 func _on_load_pressed() -> void:
     start_vbox.visible = false
@@ -242,41 +259,15 @@ func _rebuild_slots_list() -> void:
 
 func _on_slot_chosen(slot: int) -> void:
     if Game.continue_run(slot):
-        get_tree().change_scene_to_file(WORLD_SCENE)
-
-# --- Ежедневный бонус ---
-
-func _refresh_bonus_panel() -> void:
-    var can_claim := Game.can_claim_bonus()
-    claim_button.visible = can_claim
-    if can_claim:
-        bonus_result.text = "Подарок ждёт!"
-        bonus_result.add_theme_color_override("font_color", Color(0.85, 0.87, 0.9))
-    else:
-        bonus_result.text = "Награда на сегодня получена.\nВозвращайся завтра!"
-        bonus_result.add_theme_color_override("font_color", Color(0.55, 0.6, 0.67))
-
-func _on_claim_bonus_pressed() -> void:
-    var reward := Game.claim_daily_bonus()
-    if reward.is_empty():
-        _refresh_bonus_panel()
-        return
-    var item_title: String = ItemDB.title(String(reward["item_id"]))
-    bonus_result.text = "+%d золота!\nФиолетовая добыча: %s" % [reward["gold"], item_title]
-    bonus_result.add_theme_color_override("font_color", COLOR_VIOLET)
-    claim_button.visible = false
-    sparkles.restart()
-    _refresh_stats()
+        _enter_saved_scene()
 
 # --- Панели ---
 
 func _show_panel(panel: PanelContainer) -> void:
-    for other in [settings_panel, authors_panel, bonus_panel, start_panel, controls_panel]:
+    for other in [settings_panel, authors_panel, start_panel, controls_panel]:
         other.visible = other == panel
     if panel == start_panel:
         _show_start_menu_view()
-    elif panel == bonus_panel:
-        _refresh_bonus_panel()
     panel_layer.visible = true
     panel_layer.modulate.a = 0.0
     await get_tree().process_frame
@@ -289,7 +280,7 @@ func _show_panel(panel: PanelContainer) -> void:
 
 func _close_panel() -> void:
     panel_layer.visible = false
-    for other in [settings_panel, authors_panel, bonus_panel, start_panel, controls_panel]:
+    for other in [settings_panel, authors_panel, start_panel, controls_panel]:
         other.visible = false
 
 func _on_sound_toggled(pressed: bool) -> void:

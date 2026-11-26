@@ -19,9 +19,12 @@ func _ready() -> void:
         var scene: Node = load("res://scenes/%s.tscn" % scene_path).instantiate()
         add_child(scene)
         if scene_path == "main/main":
-            for i in 4:
-                scene._reveal_next_item()
-            await get_tree().create_timer(0.6).timeout
+            # шаг 29: один тап вылетает ВСЕ пункты каскадом (_reveal_all_items)
+            var tap_ev := InputEventMouseButton.new()
+            tap_ev.button_index = MOUSE_BUTTON_LEFT
+            tap_ev.pressed = true
+            scene._on_chest_gui_input(tap_ev)
+            await get_tree().create_timer(0.8).timeout
         for resolution in [Vector2i(1920, 1080), Vector2i(1600, 900), Vector2i(1366, 768), Vector2i(2560, 1440), Vector2i(3840, 2160)]:
             window.size = resolution
             for i in 3:

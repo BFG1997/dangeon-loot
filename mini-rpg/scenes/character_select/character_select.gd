@@ -1,14 +1,26 @@
-## Экран выбора героя: Воин / Варвар / Бомж / Маг (шаги 3 и 6).
+## Экран выбора героя: Воин / Варвар / Бомж / Маг / Демоноолог / Некромант
+## (шаги 3 и 6; шаг 31 — два новых колдуна).
 ## Выбор влияет на внешность, стартовое золото (шаг 5) и хп/ману (шаг 6):
-## Воин — 100 з., Варвар — 50 з., Бомж — 1 з., Маг — 60 з. (подтверждено,
-## шаг 25), у Мага — хп 30 и мана 70 (задал автор).
+## Воин — 100 з., Варвар — 50 з., Бомж — 1 з., Маг — 60 з.,
+## Демоноолог — 45 з., Некромант — 55 з. (шаг 31).
+## ФИКС ПК (шаг 26): сетка героев зависит от ширины экрана — на широких
+## окнах (ПК, 1920x1080 и т.п.) герои идут В ОДИН РЯД: прежняя сетка 2x2
+## была рассчитана на мобильные 360x640, и на ПК её содержимое не влезало
+## по высоте — кнопка «В ПУТЬ» уезжала за нижний край экрана (это и есть
+## «улетевший интерфейс»). Узкие окна (телефон) по-прежнему показывают 2 колонки.
+## Шаг 31: героев ШЕСТЬ — карточки ужаты до 140 px и зазор до 8 px,
+## чтобы ряд из шести влезал в логические 960 px (6*140+5*8+24 = 904).
 extends Control
 
 const MAIN_SCENE := "res://scenes/main/main.tscn"
 const WORLD_SCENE := "res://scenes/world/world.tscn"
-## Карточка героя: с шага 6 героев четверо — сетка 2x2 вместо ряда.
-const CARD_SIZE := Vector2(150, 0)
-const GRID_COLS := 2
+## Карточка героя: с шага 31 героев шестеро; на ПК — ряд из 6, в узком окне — 2 колонки.
+const CARD_SIZE := Vector2(140, 0)
+const GRID_COLS_NARROW := 2
+const GRID_COLS_WIDE := 6
+## Ширина логического вьюпорта, начиная с которой герои помещаются в один ряд:
+## 6 карточек по 140 + 5 зазоров по 8 = 880 px, плюс поля 12x2 = 904.
+const WIDE_MIN_WIDTH := 910.0
 const COLOR_VIOLET := Color(0.702, 0.533, 1.0)
 const COLOR_MANA := Color(0.45, 0.7, 0.95)
 
@@ -24,8 +36,19 @@ func _ready() -> void:
     _build_background()
     _build_ui()
     _refresh_slot_label()
+    # ФИКС ПК (шаг 26): число колонок пересчитывается при изменении окна.
+    get_viewport().size_changed.connect(_update_grid_columns)
+    _update_grid_columns()
     Platform.notify_ready()
     Platform.gameplay_stop()
+
+## Число колонок сетки героев: широкий экран — один ряд из 4, узкий — 2x2.
+func _update_grid_columns() -> void:
+    if cards_box == null:
+        return
+    var width := get_viewport_rect().size.x
+    cards_box.columns = GRID_COLS_WIDE if width >= WIDE_MIN_WIDTH \
+        else GRID_COLS_NARROW
 
 func _build_background() -> void:
     var bg := ColorRect.new()
@@ -56,7 +79,7 @@ func _build_ui() -> void:
     vbox.offset_right = -12
     vbox.offset_top = 58
     vbox.offset_bottom = -18
-    vbox.add_theme_constant_override("separation", 16)
+    vbox.add_theme_constant_override("separation", 10)
     vbox.alignment = BoxContainer.ALIGNMENT_CENTER
     add_child(vbox)
 
@@ -69,11 +92,12 @@ func _build_ui() -> void:
 
     var center := CenterContainer.new()
     vbox.add_child(center)
-    # шаг 6: героев четверо — карточки в сетке 2x2 (ряд не помещается в 360px)
+    # ФИКС ПК (шаг 26): героев четверо — на широком окне ряд из 4 карточек,
+    # в узком (телефон) — сетка 2x2; колонки пересчитывает _update_grid_columns().
     cards_box = GridContainer.new()
-    cards_box.columns = GRID_COLS
-    cards_box.add_theme_constant_override("h_separation", 10)
-    cards_box.add_theme_constant_override("v_separation", 10)
+    cards_box.columns = GRID_COLS_WIDE
+    cards_box.add_theme_constant_override("h_separation", 8)
+    cards_box.add_theme_constant_override("v_separation", 8)
     center.add_child(cards_box)
 
     for hero_id in Game.HEROES:
@@ -140,10 +164,11 @@ func _make_hero_card(hero_id: String) -> PanelContainer:
     flavor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     flavor.add_theme_color_override("font_color", Color(0.72, 0.76, 0.83))
     flavor.add_theme_font_size_override("font_size", 9)
-    flavor.custom_minimum_size = Vector2(128, 0)
+    flavor.custom_minimum_size = Vector2(120, 0)
     vbox.add_child(flavor)
 
-    # шаг 6: хп и мана героя (мана — новый показатель мага)
+    # шаг 6: хп и мана героя (мана — новый показатель мага); шаг 31:
+    # у колдунов мана тоже есть (растёт с уровнем — на карточке базовое)
     var hp: int = Game.hero_max_hp(hero_id)
     var mana: int = Game.hero_max_mana(hero_id)
     var stats := Label.new()

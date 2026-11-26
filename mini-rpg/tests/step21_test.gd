@@ -1,10 +1,10 @@
-## Тест шага 21: Ктулху стал УСТРАШАЮЩИМ и СУМКА вернулась в кнопки.
-## Проверки: 4 кнопки HUD (МЕНЮ/СУМКА/СОХРАНИТЬ/ЗАГРУЗИТЬ) в мире и данже,
-## СУМКА открывает инвентарь; статы Ктулху (hp 850, урон 26, x4); глаза-угли
+## Тест шага 21: Ктулху стал УСТРАШАЮЩИМ; кнопка инвентаря в HUD (шаг 30:
+## единственная кнопка ИНВЕНТАРЬ). Проверки: кнопка HUD в мире и данже,
+## кнопка открывает инвентарь; статы Ктулху (hp 850, урон 26, x4); глаза-угли
 ## и аура; рёв после диалога; удар щупалец (круг-предупреждение, 30 урона);
 ## веер из 5 болтов безумия; шёпоты Р'льеха; призыв Отродий звёзд на 70%/35%;
 ## фаза 2 «небо гаснет» (воздух темнеет, когти быстрее); при победе воздух
-## возвращается. Звук: 20 эффектов, roar/slam на месте.
+## возвращается. Звук: 22 эффекта (шаг 27 добавил crit/dash), roar/slam на месте.
 ## Запуск: godot --headless --path . res://tests/step21_test.tscn
 extends Node
 
@@ -36,8 +36,9 @@ func _ready() -> void:
     Saves.wipe_all_slots()
 
     # ================== звук шага 21 ==================
-    check("Sfx: 20 эффектов, есть roar и slam",
-        Sfx.SOUNDS.size() == 20 and Sfx.SOUNDS.has("roar")
+    check("Sfx: 22 эффекта, есть roar/slam и боевые crit/dash",
+        Sfx.SOUNDS.size() == 22 and Sfx.SOUNDS.has("roar")
+        and Sfx.SOUNDS.has("crit") and Sfx.SOUNDS.has("dash")
         and Sfx.SOUNDS.has("slam"))
     check("файл рёва существует",
         ResourceLoader.exists("res://assets/audio/sfx/" + String(Sfx.SOUNDS["roar"])))
@@ -65,14 +66,14 @@ func _ready() -> void:
     check("глаза-угли и таймеры тактики на месте",
         boss.has("eyes") and (boss["eyes"] as Array).size() == 2
         and boss.has("slam_cd") and boss.has("volley_cd"))
-    check("HUD данжа: МЕНЮ / СУМКА / СОХРАНИТЬ / ЗАГРУЗИТЬ",
-        hud_button_texts(dun._hud_bar) == ["МЕНЮ", "СУМКА", "СОХРАНИТЬ", "ЗАГРУЗИТЬ"])
+    check("HUD данжа: одна кнопка ИНВЕНТАРЬ",
+        hud_button_texts(dun._hud_bar) == ["ИНВЕНТАРЬ"])
     dun._on_bag_pressed()
     await get_tree().process_frame
-    check("СУМКА открывает инвентарь в данже", dun._inventory_ui.visible)
+    check("ИНВЕНТАРЬ открывает инвентарь в данже", dun._inventory_ui.visible)
     dun._on_bag_pressed()
     await get_tree().process_frame
-    check("СУМКА закрывает инвентарь", not dun._inventory_ui.visible)
+    check("ИНВЕНТАРЬ закрывает инвентарь", not dun._inventory_ui.visible)
 
     # диалог и пробуждение: рёв, агрессия
     dun._open_boss_dialog()
@@ -191,14 +192,14 @@ func _ready() -> void:
     add_child(world)
     await get_tree().process_frame
     await get_tree().process_frame
-    check("HUD мира: МЕНЮ / СУМКА / СОХРАНИТЬ / ЗАГРУЗИТЬ",
-        hud_button_texts(world._hud_bar) == ["МЕНЮ", "СУМКА", "СОХРАНИТЬ", "ЗАГРУЗИТЬ"])
+    check("HUD мира: одна кнопка ИНВЕНТАРЬ",
+        hud_button_texts(world._hud_bar) == ["ИНВЕНТАРЬ"])
     world._on_bag_pressed()
     await get_tree().process_frame
-    check("СУМКА открывает инвентарь в мире", world._inventory_ui.visible)
+    check("ИНВЕНТАРЬ открывает инвентарь в мире", world._inventory_ui.visible)
     world._on_bag_pressed()
     await get_tree().process_frame
-    check("СУМКА закрывает инвентарь", not world._inventory_ui.visible)
+    check("ИНВЕНТАРЬ закрывает инвентарь", not world._inventory_ui.visible)
     world.free()
     await get_tree().process_frame
 

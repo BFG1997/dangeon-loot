@@ -9,25 +9,32 @@ signal save_state_changed(error: int, pending: bool)
 ## Шаг 20: v3 — десятое действие "special2" (третий приём, T); заодно
 ## сменились дефолты: удар на F, взаимодействие на E. Профили v2 (9
 ## действий) несовместимы и заменяются новыми дефолтами.
-const PROFILE_VERSION := 3
+## Шаг 30: v4 — клавиши приёмов поменялись местами: приём героя (действие
+## "dash", раньше был Ctrl) теперь на ПРОБЕЛЕ и ПЕРЕНАЗНАЧАЕТСЯ, а бывший
+## пробел ("special": щит/барьер/газ/прыжок) переехал на Ctrl и стал
+## модификатором — из ACTIONS он убран. Профили v3 несовместимы.
+const PROFILE_VERSION := 4
 var last_save_error: int = OK
 var save_pending: bool = false
 var load_diagnostic: String = ""
 
 const ACTIONS: Array[StringName] = [
     &"move_up", &"move_down", &"move_left", &"move_right",
-    &"interact", &"attack", &"cast_spell", &"special", &"special2",
+    &"interact", &"attack", &"cast_spell", &"dash", &"special2",
     &"toggle_inventory",
 ]
 ## Шаг 18: cast_spell — первый приём героя (Q: у мага — магия, у остальных —
-## свой приём), special — второй приём (пробел: у всех классов).
+## свой приём).
 ## Шаг 20: special2 — третий приём (T: выплеск магии/передышка/прыжок/град).
-## Действие "run" (бег на Shift) в ACTIONS не входит: Shift — модификатор,
-## _normalize такие клавиши не принимает, бег не переназначается.
+## Шаг 30: dash — приём героя на ПРОБЕЛЕ (у воина рывок, у мага телепорт,
+## у бомжа хмель, у варвара пинок); он переназначается в редакторе.
+## Действия "special" (щит/барьер/газ/прыжок — теперь Ctrl) и "run" (бег
+## на Shift) в ACTIONS не входят: клавиши-модификаторы _normalize не
+## принимает, они не переназначаются.
 const ACTION_LABELS := {
     &"move_up": "Вверх", &"move_down": "Вниз", &"move_left": "Влево",
     &"move_right": "Вправо", &"interact": "Взаимодействие", &"attack": "Атака",
-    &"cast_spell": "Приём Q", &"special": "Приём 2", &"special2": "Приём T",
+    &"cast_spell": "Приём Q", &"dash": "Приём героя", &"special2": "Приём T",
     &"toggle_inventory": "Инвентарь",
 }
 
@@ -242,6 +249,10 @@ func _apply(changes: Dictionary, persist: bool = true) -> void:
 func get_event_label(event: InputEvent) -> String:
     var normalized := _normalize(event)
     if normalized is InputEventKey:
+        # Шаг 30: Пробел по-русски — слот приёма подписан «ПРОБЕЛ», и в
+        # подсказке/редакторе он должен называться так же.
+        if int(normalized.physical_keycode) == KEY_SPACE:
+            return "Пробел"
         return OS.get_keycode_string(normalized.physical_keycode)
     if normalized is InputEventMouseButton:
         return {
@@ -389,20 +400,32 @@ func get_binding_text(action: StringName, primary_only: bool = false) -> String:
 ## Шаг 18: в подсказку добавлены приёмы героя. ability_q/ability_special —
 ## названия приёмов текущего класса (пустая строка — строчка не выводится;
 ## у мага «магия» уже напечатана по has_magic, его приём Q не дублируется).
+## Шаг 30: клавиши приёмов поменялись местами. Приём героя (dash) теперь
+## на ПРОБЕЛЕ и зовётся привязкой действия (переназначается); бывший
+## пробел (special) — на Ctrl, это модификатор: печатаем жёсткое «Ctrl».
+## Двойной тап направления — только у героев, чей приём перемещает
+## (воин и маг).
 func get_hud_hint(has_magic: bool, ability_q: String = "",
         ability_special: String = "", ability_t: String = "") -> String:
     var movement: PackedStringArray = []
     for action in [&"move_up", &"move_left", &"move_down", &"move_right"]:
         movement.append(get_binding_text(action, true))
-    var text := "%s / джойстик — идти · %s — говорить / использовать\n%s — удар · %s — сумка · Shift — бег" % [
+    var dash_title := String(Game.ability_info("dash").get("title", "Рывок"))
+    var dash_note := "%s — %s" % [get_binding_text(&"dash", true), dash_title]
+    var kind := String(Game.ability_info("dash").get("kind", "dash"))
+    # шаг 31: фазовый рывок некроманта тоже перемещение — двойной тап работает
+    if kind == "dash" or kind == "blink" or kind == "phase_dash":
+        dash_note += " · двойной тап направления — тоже"
+    var text := "%s / джойстик — идти · %s — говорить / использовать\n%s — удар · %s — сумка · Shift — бег · %s" % [
         " / ".join(movement), get_binding_text(&"interact", true),
-        get_binding_text(&"attack", true), get_binding_text(&"toggle_inventory", true)]
+        get_binding_text(&"attack", true), get_binding_text(&"toggle_inventory", true),
+        dash_note]
     if has_magic:
         text += " · %s — магия" % get_binding_text(&"cast_spell", true)
     if not ability_q.is_empty():
         text += " · %s — %s" % [get_binding_text(&"cast_spell", true), ability_q]
     if not ability_special.is_empty():
-        text += " · %s — %s" % [get_binding_text(&"special", true), ability_special]
+        text += " · Ctrl — %s" % ability_special
     if not ability_t.is_empty():
         text += " · %s — %s" % [get_binding_text(&"special2", true), ability_t]
     return text

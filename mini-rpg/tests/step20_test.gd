@@ -4,7 +4,7 @@
 ## (МЕНЮ / СУМКА / СОХРАНИТЬ / ЗАГРУЗИТЬ), быстрое сохранение в слот,
 ## дверь 3 заперта до победы в Ските Пустоты, приёмы T в мире, звук
 ## шага 20 (18 эффектов + эмбиент). Управление сбрасывается к дефолтам
-## в начале теста (профиль v3).
+## в начале теста (профиль v4 — шаг 30 поменял местами пробел и Ctrl).
 ## Запуск: godot --headless --path . res://tests/step20_test.tscn
 extends Node
 
@@ -69,11 +69,12 @@ func _ready() -> void:
     check("взаимодействие — только E (F переехал на удар)",
         not f_in_interact
         and (InputMap.action_get_events("interact")[0] as InputEventKey).physical_keycode == KEY_E)
-    check("профиль управления v3", Controls.PROFILE_VERSION == 3)
+    check("профиль управления v4 (шаг 30)", Controls.PROFILE_VERSION == 4)
 
     # ================== звук шага 20 ==================
-    check("у Sfx 20 эффектов, включая приёмы T и голос Ктулху",
-        Sfx.SOUNDS.size() == 20 and Sfx.SOUNDS.has("surge")
+    check("у Sfx 22 эффекта: приёмы T, голос Ктулху, шаг 27 (crit/dash)",
+        Sfx.SOUNDS.size() == 22 and Sfx.SOUNDS.has("surge")
+        and Sfx.SOUNDS.has("crit") and Sfx.SOUNDS.has("dash")
         and Sfx.SOUNDS.has("heal") and Sfx.SOUNDS.has("leap")
         and Sfx.SOUNDS.has("rain") and Sfx.SOUNDS.has("roar")
         and Sfx.SOUNDS.has("slam"))
@@ -120,15 +121,23 @@ func _ready() -> void:
     dungeon.free()
     await get_tree().process_frame
 
-    # ================== бомж: передышка (T) ==================
+    # ================== бомж: превращение в оборотня (T) ==================
+    # (шаг 32: передышка заменена на превращение — задал автор)
     Game.new_run(1, "bum")
     Game.dungeon_floor = 1
     var d2: Node2D = await load_dungeon()
-    Game.damage_hp(7)
-    check("бомж ранен перед передышкой", Game.hp < Game.max_hp())
     d2._on_t_pressed()
-    check("передышка восстанавливает всё ХП", Game.hp == Game.max_hp())
-    check("кулдаун передышки 25 с (шаг 22)", d2._t_cd > 24.0)
+    check("T бомжа превращает в оборотня (шаг 32)", Game.werewolf_active
+        and String(Game.ability_info("q")["kind"]) == "claws"
+        and String(Game.ability_info("dash")["kind"]) == "pounce"
+        and String(Game.ability_info("special")["kind"]) == "howl")
+    check("кулдаун смены формы 30 с (шаг 32)", d2._t_cd > 24.0
+        and Game.werewolf_cd_left() > 24.0)
+    # повторное нажатие на кулдауне форму не меняет
+    d2._on_t_pressed()
+    check("на кулдауне форма не меняется", Game.werewolf_active)
+    Game.werewolf_active = false   # шаг 32: гасим форму для остальных проверок
+    Game.werewolf_cd_until = 0
     d2.free()
     await get_tree().process_frame
 
@@ -171,8 +180,8 @@ func _ready() -> void:
         bool(victim.get("dead", false)) or int(victim["hp"]) < victim_hp)
 
     # ================== HUD и сохранение ==================
-    check("HUD подземелья: МЕНЮ / СУМКА / СОХРАНИТЬ / ЗАГРУЗИТЬ",
-        hud_button_texts(d4._hud_bar) == ["МЕНЮ", "СУМКА", "СОХРАНИТЬ", "ЗАГРУЗИТЬ"])
+    check("HUD подземелья: одна кнопка ИНВЕНТАРЬ",
+        hud_button_texts(d4._hud_bar) == ["ИНВЕНТАРЬ"])
     var slot := Game.current_slot
     d4._on_save_pressed()
     await get_tree().process_frame
@@ -196,12 +205,15 @@ func _ready() -> void:
         and String(world._dialogue._name_label.text).contains("глубин"))
     world._dialogue._close()
     await get_tree().process_frame
-    check("HUD мира: МЕНЮ / СУМКА / СОХРАНИТЬ / ЗАГРУЗИТЬ",
-        hud_button_texts(world._hud_bar) == ["МЕНЮ", "СУМКА", "СОХРАНИТЬ", "ЗАГРУЗИТЬ"])
+    check("HUD мира: одна кнопка ИНВЕНТАРЬ",
+        hud_button_texts(world._hud_bar) == ["ИНВЕНТАРЬ"])
     Game.hero_id = "bum"
-    Game.hp = 5
     world._on_t_pressed()
-    check("в мире передышка лечит героя", Game.hp == Game.max_hp())
+    check("в мире T бомжа тоже превращает в оборотня (шаг 32)",
+        Game.werewolf_active
+        and String(Game.ability_info("special")["kind"]) == "howl")
+    Game.werewolf_active = false
+    Game.werewolf_cd_until = 0
     world.free()
     await get_tree().process_frame
 

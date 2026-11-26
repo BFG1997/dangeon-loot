@@ -91,6 +91,11 @@ const DUNGEON_SCENE := "res://scenes/dungeon/dungeon.tscn"
 const SPEED := 95.0
 ## Шаг 20: бег на Shift — быстрее в мире и в данже.
 const RUN_MULT := 1.55
+## Шаг 32: оборотень — самый быстрый герой, особенно на Shift (на четырёх
+## лапах). WEREWOLF_SCALE — самый большой играбельный персонаж (х1.5).
+const WEREWOLF_SCALE := 1.5
+const WEREWOLF_WALK_MULT := 1.3      # обычный шаг волка
+const WEREWOLF_RUN_MULT := 2.2       # бег на четырёх лапах (vs обычный 1.55)
 const COLOR_GOLD := Color(1, 0.84, 0)
 const CHAR_W := 24
 const CHAR_H := 32
@@ -103,15 +108,16 @@ const CHAR_H := 32
 ## 960x540 (stretch scale 2.0), раскладка адаптивная.
 const UI_BAR_H := 112.0
 const WALK_H := 640.0 - UI_BAR_H
-## Геометрия консоли (в её локальных координатах, 360 x UI_BAR_H):
-## слева джойстик 100 px, в центре панель героя, справа столбик кнопок.
+## Геометрия консоли (в её локальных координатах, 960 x UI_BAR_H на ПК):
+## слева панель героя (или джойстик на сенсорных), в центре слоты приёмов
+## (шаг 27), справа столбик кнопок. Шаг 27: кнопки укрупнены под ПК.
 const BAR_JOY_POS := Vector2(2, 6)
 const BAR_HERO_POS := Vector2(110, 6)
-const BAR_BUTTONS_X := 292.0
-## Размер кнопок действий (шаг 11): подписи без клавиш — клавиши
-## перечислены в подсказке у верхнего края экрана ходьбы.
-const BAR_BTN_SIZE := Vector2(64, 22)
-const BAR_BTN_STEP := 22.0   # шаг 21: кнопок четыре (МЕНЮ/СУМКА/СОХРАНИТЬ/ЗАГРУЗИТЬ)
+const BAR_BUTTONS_X := 854.0
+## Размер кнопок действий (шаг 11; шаг 27 — 100x24 под ПК): подписи без
+## клавиш — клавиши перечислены в подсказке у верхнего края экрана ходьбы.
+const BAR_BTN_SIZE := Vector2(100, 24)
+const BAR_BTN_STEP := 26.0   # шаг 21: кнопок четыре (МЕНЮ/СУМКА/СОХРАНИТЬ/ЗАГРУЗИТЬ)
 
 ## Реплики NPC (шаг 4; шаг 9/12 — лавкрафтовский космо-хоррор: замок висит
 ## над Пустотой уже тысячу лет, и жители давно перестали делать вид,
@@ -374,6 +380,7 @@ var _player_sprite: AnimatedSprite2D
 var _camera: Camera2D
 var _joystick: Control = null
 var _world: Node2D = null              # контент мира внутри SubViewport (шаг 10)
+var _star_layers: Array = []           # статичные слои звёзд (шаг 30: Sprite2D с repeat)
 var _walk_holder: SubViewportContainer = null  # контейнер экрана ходьбы (шаг 11)
 var _walk_view: SubViewport = null     # сам SubViewport экрана ходьбы (шаг 11)
 var _hud_bar: Control = null           # нижняя консоль UI (шаг 10)
@@ -395,6 +402,7 @@ var _dialogue_npc: Dictionary = {}   # данные NPC последнего о�
 ## из мира мёртвая лямбда падает на первом же изменении золота/хп в данже.
 var _cb_gold: Callable
 var _cb_equipped: Callable
+var _cb_armor: Callable                # шаг 30: перерисовка иконки брони в HUD
 var _cb_hp: Callable
 var _cb_mana: Callable
 var _cb_xp: Callable                   # полоса опыта (шаг 19)
@@ -421,6 +429,11 @@ var _t_cd := 0.0                        # кулдаун приёма T (шаг 
 var _sword_rain: Array[Dictionary] = [] # падающие мечи рыцаря (шаг 20)
 var _leap_flight: Dictionary = {}       # полёт варвара на демона (шаг 20)
 var _titan_big := false                 # шаг 22: спрайт вырос (гнев титана)
+# --- шаг 32: F-атака оружием, мечи воина и оборотень бомжа ---
+var _f_cd := 0.0                         # кулдаун F-атаки оружия (сек)
+var _sword_orbit: Array[Dictionary] = [] # мечи, крутящиеся вокруг воина
+var _orbit_left := 0.0                   # сколько секунд мечи ещё крутятся
+var _werewolf_visual := false            # спрайт бомжа = оборотень
 var _titan_base_scale := Vector2.ONE    # шаг 22: обычный размер спрайта
 var _special_held := false              # приём-удержание активен (пробел зажат)
 var _special_hold_left := 0.0           # сколько секунд удержания осталось
@@ -428,6 +441,25 @@ var _special_drain_accum := 0.0         # накопитель расхода м
 var _hold_visual: Sprite2D = null       # круг барьера/щита (glow.png)
 var _gas_clouds: Array[Dictionary] = []  # облака газа бомжа
 var _ability_axe_tex: Texture2D = null
+# --- шаг 27: боевая система — комбо и рывок ---
+var _combo_idx := 0                      # номер текущего удара в серии
+var _combo_left := 0.0                   # сколько осталось до конца окна серии
+var _dash_time := 0.0                    # длительность рывка осталась, сек
+var _dash_dir := Vector2.ZERO            # направление рывка
+var _dash_cd := 0.0                      # кулдаун рывка, сек
+var _dash_ghost := 0.0                   # накопитель призрачного следа
+var _last_dir_taps := {}                 # время последнего тапа move_* (двойной тап)
+var _hud_slots: Array = []               # слоты приёмов в консоли (шаг 27)
+var _hud_equip: Dictionary = {}          # мини-слоты экипировки (шаг 29)
+var _hud_buffs_box: HBoxContainer = null # индикаторы эффектов (шаг 29)
+var _hud_buffs_sig := ""                 # сигнатура набора эффектов
+var _hud_form_sig := ""                  # шаг 32: сигнатура формы героя (оборотень)
+# --- шаг 31: союзники-призывы (демоны Демоноолога, армия и босс Некроманта) ---
+var _minions: Array[Dictionary] = []     # живые союзники сцены (записи Minions)
+var _hud_summon_cells: Array = []        # ячейки демонов в блоке «СПОСОБНОСТИ»
+var _hud_army_count: Label = null        # счётчик армии некроманта
+var _hud_army_box: HBoxContainer = null  # иконки армии некроманта
+var _hud_army_sig := ""                  # сигнатура размера армии
 # --- шаг 8: Таинственный демон ---
 var _demon_spawned := false              # демон появляется один раз за сессию
 # --- шаг 11: удар по клику ЛКМ — время клика, который открыл диалог ---
@@ -443,13 +475,19 @@ var _slash_tex: Texture2D = null
 var _level_layer: CanvasLayer = null
 ## Шаг 24: космос-юг, мутация и финал.
 var _cosmos_overlay: ColorRect = null    # затемнение южных рядов (жутчеет)
+var _cosmos_sides: Array = []            # боковой космос (расширение хаба)
 var _cosmos_eyes: Array = []             # глаза из тьмы (пульсируют)
 var _ending_layer: CanvasLayer = null    # экран «КОНЕЦ ИГРЫ»
 var _ending_shown := false
+## Шаг 30: пауза на Escape (Продолжить/Загрузить/Сохранить/Настройки/Меню).
+var _pause_menu: PauseMenu = null
 ## Королева ночи (шаг 24): запись NPC Лир в режиме финального босса.
 var _queen_confession_done := false
 
 func _ready() -> void:
+    # шаг 27: боевая случайность (разброс/криты/комбо) — в живой игре;
+    # в тестовом прогоне (предок из res://tests/) выключена — детерминизм
+    Game.combat_variance = not Game.under_test(self)
     _shadow_tex = load("res://assets/sprites/props/shadow.png")
     _pointer_tex = load("res://assets/sprites/props/pointer.png")
     _bolt_tex = load("res://assets/sprites/icons/magic_bolt.png")
@@ -467,6 +505,9 @@ func _ready() -> void:
     _build_joystick()
     _build_death_ui()
     _build_ending_ui()
+    # шаг 30: пауза на Escape — последним, чтобы перехватывать Esc раньше
+    # мира (панель сама не открывается, если открыт диалог/сумка/торговля)
+    _pause_menu = PauseMenu.attach(self)
     # шаг 24: мутация/финал/космос по прогрессу — ПОСЛЕ HUD (подсказки
     # финала пишутся в _hud_hint) и ПОСЛЕ диалога (Королева использует его)
     _apply_world_state()
@@ -477,6 +518,8 @@ func _ready() -> void:
         _spawn_demon()   # сессия продолжается — демон уже ждёт у края
     # шаг 13: ожившие жертвы демона возвращаются на свои места
     Game.npcs_revived.connect(_revive_npcs_in_world)
+    # шаг 31: призывы (демоны/армия/босс) ходят с героем — пересобираем из Game
+    Minions.restore_allies(self)
     # шаг 12: ярость демона (третий удар) и смерть героя (хп до нуля)
     Game.demon_enraged_changed.connect(_on_demon_enraged)
     Game.hp_changed.connect(_on_player_hp_changed)
@@ -504,6 +547,8 @@ func _exit_tree() -> void:
     # шаг 18: неуязвимость/щит не переживают смену сцены
     Game.hero_immune = false
     Game.guard_active = false
+    # шаг 31: хп призывов пишется в Game — в новой сцене они уже ждут
+    Minions.stash_allies(self)
     # шаг 19: эмбиент и сигналы опыта не переживают смену сцены
     Sfx.stop_ambient()
     if Game.level_up.is_connected(_on_level_up):
@@ -515,6 +560,7 @@ func _exit_tree() -> void:
     Platform.gameplay_stop()
     _disconnect_cb(Game.gold_changed, _cb_gold)
     _disconnect_cb(Game.equipped_changed, _cb_equipped)
+    _disconnect_cb(Game.armor_changed, _cb_armor)   # шаг 30: иконка брони
     _disconnect_cb(Game.hp_changed, _cb_hp)
     _disconnect_cb(Game.mana_changed, _cb_mana)
     # Шаг 23: полоса опыта и строка уровня ТОЖЕ лямбды на сигналах Game —
@@ -571,21 +617,34 @@ func _build_walk_screen() -> void:
 # ---------------------------------------------------------------- космос
 
 func _build_background() -> void:
-    var parallax := ParallaxBackground.new()
+    # ФИКС ПК (шаг 26): звёзды закрывают весь экран ходьбы на любом
+    # разрешении.
+    # Шаг 30 (тряска экрана в Хабе): Parallax2D с scroll_scale + сглаживание
+    # камеры дают постоянное микродрожание фона — слои пересчитываются
+    # каждый кадр по позиции камеры (с дробными координатами), и после
+    # привязки к пикселям звёзды «пляшут». Заменяем параллакс на СТАТИЧНЫЕ
+    # спрайты: каждая текстура замощена region-повтором по всей карте
+    # (камера всё равно не выходит за её пределы — zoom >= 1 и лимиты
+    # равны карте). Двигаться нечему — дрожать нечему.
+    _star_layers = []
+    var map_w := float(WorldMap.MAP_W * WorldMap.TILE_SIZE)
+    var map_h := float(WorldMap.MAP_H * WorldMap.TILE_SIZE)
+    var margin := 96.0   # запас за краями карты на дробный zoom
     for config in [
-        {"tex": "res://assets/backgrounds/stars_far.png", "scale": Vector2(0.12, 0.12)},
-        {"tex": "res://assets/backgrounds/stars_near.png", "scale": Vector2(0.3, 0.3)},
+        {"tex": "res://assets/backgrounds/stars_far.png"},
+        {"tex": "res://assets/backgrounds/stars_near.png"},
     ]:
-        var layer := ParallaxLayer.new()
-        layer.motion_scale = config["scale"]
-        # шаг 25: звёзды тайлятся по размеру вьюпорта (ПК: 960x540 и шире)
-        layer.motion_mirroring = get_viewport_rect().size
+        var tex: Texture2D = load(config["tex"])
         var spr := Sprite2D.new()
-        spr.texture = load(config["tex"])
+        spr.name = "Stars_%s" % (String(config["tex"]).get_file().get_basename())
+        spr.texture = tex
         spr.centered = false
-        layer.add_child(spr)
-        parallax.add_child(layer)
-    _world.add_child(parallax)
+        spr.position = Vector2(-margin, -margin)
+        spr.region_enabled = true
+        spr.region_rect = Rect2(0, 0, map_w + margin * 2.0, map_h + margin * 2.0)
+        spr.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+        _world.add_child(spr)
+        _star_layers.append({"sprite": spr, "tex": tex})
 
 # ---------------------------------------------------------------- тайлы
 
@@ -969,115 +1028,27 @@ func _point_on_interactive(pos: Vector2) -> bool:
 ## диалоги пропадают — остаётся только реплика про убийство, и торговать
 ## с ними больше нельзя. Демон же убийцу приветствует и сам зовёт торговать.
 func npc_say(npc_id: String) -> void:
-    for npc in _npcs:
-        if npc["id"] != npc_id:
-            continue
-        if bool(npc.get("dead", false)) or Game.is_npc_dead(npc_id):
-            return
-        var data: Dictionary = npc["data"]
-        _dialogue_npc = data
-        # Шаг 24 (п.9): в финале Лира — Королева ночи: разговор = признание.
-        if Game.finale_active() and String(npc_id) == QUEEN_ID:
-            _talk_queen()
-            return
-        var lines: Array
-        var goods: Array
-        if bool(data.get("demon", false)):
-            # демон: до ярости радуется убийству жителей и зовёт к своей лавке.
-            # Шаг 13: разговор с демоном — «мы видели демона»: босс данжа 1
-            # по этому флагу узнаёт героя.
-            Game.mark_demon_seen()
-            # Ассортимент динамический — товары павших торговцев, поэтому
-            # для лавки кладём его прямо в словарь торговца (TradeUI
-            # читает goods из данных торговца).
-            # Шаг 12: в ярости лавки нет — только угрозы.
-            _dialogue_npc = data.duplicate()
-            if Game.demon_enraged:
-                (_dialogue_npc as Dictionary)["role"] = "разбуженная ярость"
-                (_dialogue_npc as Dictionary)["goods"] = []
-                lines = DEMON_RAGE_LINES.duplicate()
-                goods = []
-            else:
-                (_dialogue_npc as Dictionary)["goods"] = Game.demon_goods()
-                lines = _demon_lines()
-                goods = Game.demon_goods()
-        else:
-            # Шаг 24 (п.8): мутант говорит бред (и торгует — дороже);
-            # иначе обычные реплики + реакция на пройденный данж (п.1)
-            if Game.mutation_active():
-                lines = _mad_lines(npc_id)
-            else:
-                lines = (NPC_LINES.get(npc_id, ["..."]) as Array).duplicate()
-                var reaction := _dungeon_reaction(npc_id)
-                if not reaction.is_empty():
-                    lines.push_front(reaction)
-            if not Game.dead_npcs.is_empty():
-                # шаг 8: старые диалоги больше не появятся — только память
-                # об убийстве; торговцы отказываются торговать с убийцей
-                lines = [_murder_reaction(npc_id)]
-                goods = []
-            else:
-                # шаг 22: прилавок = базовый товар + то, что герой продал
-                # торговцу этого профиля (смотря что это и какой торговец)
-                goods = Game.merchant_goods(String(data.get("id", "")))
-        var role_text := String(data["role"])
-        if Game.mutation_active() and not bool(data.get("demon", false)):
-            role_text = "мутант"
-        if Game.finale_active() and String(npc_id) == QUEEN_ID:
-            role_text = QUEEN_TITLE
-        _dialogue.open({
-            "name": data["name"],
-            "role": role_text,
-            "portrait": data["portrait"],
-            "lines": lines,
-            "goods": goods,
-        })
-        (npc["sprite"] as AnimatedSprite2D).play("idle_down")
-        return
+    DialogueLink.npc_say(self, npc_id)   # шаг 28: логика — в компоненте
 
 ## Бред замутанта (шаг 24, п.8): две реплики из NPC_MAD_LINES.
 func _mad_lines(npc_id: String) -> Array:
-    var lines: Array = NPC_MAD_LINES.get(npc_id,
-        ["МЫ... МЫ... МЫ... торг... торг...", "Пустота говорит твоим ртом."])
-    return (lines as Array).duplicate()
+    return DialogueLink.mad_lines(self, npc_id)   # шаг 28
 
 ## Реакция NPC на последний пройденный данж (шаг 24, п.1): пусто — реакции нет.
 func _dungeon_reaction(npc_id: String) -> String:
-    var cleared := Game.last_cleared_dungeon()
-    if cleared.is_empty() or Game.dungeon_4_open() or Game.finale_active():
-        return ""
-    var per_npc: Dictionary = NPC_DUNGEON_REACTIONS.get(cleared, {})
-    return String(per_npc.get(npc_id, ""))
+    return DialogueLink.dungeon_reaction(self, npc_id)   # шаг 28
 
 ## Реплики живого NPC про убитых героем: имена подставляются
 ## в винительном падеже (см. NPC_VICTIM_ACC).
 func _murder_reaction(speaker_id: String) -> String:
-    var victims: Array[String] = []
-    for victim_id in Game.dead_npcs:
-        victims.append(String(NPC_VICTIM_ACC.get(String(victim_id), String(victim_id))))
-    var template: String = NPC_MURDER_REACTIONS.get(speaker_id, "Ты убил %s!")
-    return template % ", ".join(victims)
+    return DialogueLink.murder_reaction(self, speaker_id)   # шаг 28
 
 ## Реплики демона (шаг 8; шаг 9/12 — лавкрафтовский хоррор): рад убийству
 ## жителей, перечисляет жертв, хвастается лавкой из товаров павших и зовёт
 ## убивать ещё — каждая новая жертва дешевит его лавку ещё на 10%.
 ## (В ярости реплики другие — DEMON_RAGE_LINES, см. npc_say.)
 func _demon_lines() -> Array:
-    var lines: Array = []
-    var victims: Array[String] = []
-    for victim_id in Game.dead_npcs:
-        var vid := String(victim_id)
-        if vid != "demon":
-            victims.append(String(NPC_VICTIM_ACC.get(vid, vid)))
-    lines.append("Хе-хе-хе! Я чую это с края мира: смертный остыл — и это сделал ты. Пустота аплодирует стоя.")
-    if not victims.is_empty():
-        lines.append("Ты убил %s. Я всё видел отсюда: их тени уже переползли через ограду и ползут ко мне. Теперь они мои." % ", ".join(victims))
-    if Game.demon_goods().is_empty():
-        lines.append("Пока мне нечего тебе продать. Убей торговца — его лавка переедет ко мне. Вместе с ценами. Вместе с голосом.")
-    else:
-        lines.append("Товары павших торговцев теперь мои. И дешевле, чем у них были: скидка %d%%. Мёртвые не торгуются." % Game.demon_discount_pct())
-    lines.append("Убей ещё жителя — и цены упадут ещё на десять процентов. Каждая новая тень делает мой товар щедрее.")
-    return lines
+    return DialogueLink.demon_lines(self)   # шаг 28
 
 ## Кнопка «ТОРГОВАТЬ» в диалоге: закрываем реплики и открываем лавку.
 func _on_trade_requested() -> void:
@@ -1229,11 +1200,24 @@ func _update_queen(delta: float) -> void:
         return
     var node: Node2D = queen["node"]
     var spr: AnimatedSprite2D = queen["sprite"]
+    # шаг 32: яд и горение тикают и на Королеве
+    FoeFx.tick_effects(self, queen, delta)
+    # шаг 32: оглушение (вой оборотня) — Королева замирает
+    if int(queen.get("stun_until", 0)) > Time.get_ticks_msec():
+        spr.play("idle_down")
+        return
+    # шаг 32: страх — Королева бросает погоню
+    if FoeFx.flee_from_hero(self, queen, delta):
+        return
     if int(queen.get("blind_until", 0)) > Time.get_ticks_msec():
         spr.play("idle_down")
         return
     var to := player.position - node.position
     queen["atk_cd"] = maxf(0.0, float(queen.get("atk_cd", 0.0)) - delta)
+    # шаг 27: во время телеграфа Королева замирает — удар читается заранее
+    if Combat.telegraph_pending(queen):
+        spr.play("idle_down")
+        return
     if to.length() > QUEEN_ATTACK_RANGE * 0.8:
         var dirv := to.normalized()
         var step := QUEEN_SPEED * delta
@@ -1251,9 +1235,19 @@ func _update_queen(delta: float) -> void:
     else:
         spr.play("idle_down")
     if to.length() <= QUEEN_ATTACK_RANGE and float(queen.get("atk_cd", 0.0)) <= 0.0:
+        # шаг 27: телеграф атаки — красный замах за 0.45 с до когтей;
+        # герой успел уйти (рывок) — когти бьют воздух
+        if not Combat.telegraph_ready(queen):
+            Combat.begin_telegraph(self, queen, true)
+            return
+        Combat.end_telegraph(self, queen)
         queen["atk_cd"] = QUEEN_ATTACK_CD
-        Game.damage_hp(QUEEN_DAMAGE)
-        Sfx.play("hurt")
+        # шаг 31: когти Королевы перехватывает союзник-призыв
+        if Minions.intercept(self, node.position, QUEEN_ATTACK_RANGE * 1.2,
+                QUEEN_DAMAGE):
+            return
+        Game.damage_hp(QUEEN_DAMAGE, true)
+        Sfx.play_variant("hurt")
         _spawn_swing(player.position + Vector2(0, -10), Color(0.5, 0.25, 0.8))
         _spawn_damage_label(player.position + Vector2(0, -40), QUEEN_DAMAGE)
         _spell_poof(player.position + Vector2(0, -14), Color(0.45, 0.2, 0.65))
@@ -1265,7 +1259,7 @@ func _kill_queen(npc: Dictionary) -> void:
     _spell_poof((npc["node"] as Node2D).position + Vector2(0, -30),
         Color(0.55, 0.35, 0.9))
     Game.slay_queen()
-    Sfx.play("die")
+    Sfx.play_variant("die")
     _show_hint("Королева ночи развеялась по стелам. Пустота впервые за тысячу лет промолчала.", 6.0)
     _show_ending()
 
@@ -1327,8 +1321,9 @@ func _on_ending_menu_pressed() -> void:
 
 # ---------------------------------------------------------------- космос-юг (шаг 24)
 
-## Затемнение южных рядов (за оградой) + глаза, смотрящие из тьмы.
-## Ярость космоса растёт с каждым пройденным подземельем (_refresh_cosmos).
+## Затемнение космоса (юг за оградой + боковые колонки; расширение хаба)
+## и глаза, смотрящие из тьмы. Ярость космоса растёт с каждым пройденным
+## подземельем (_refresh_cosmos).
 func _build_cosmos_dread() -> void:
     _cosmos_overlay = ColorRect.new()
     _cosmos_overlay.name = "CosmosDread"
@@ -1337,10 +1332,23 @@ func _build_cosmos_dread() -> void:
         (WorldMap.MAP_H - WorldMap.RAILING_ROW) * 16.0)
     _cosmos_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
     _world.add_child(_cosmos_overlay)
-    # глаза: шести «наблюдателей» расставим по югу один раз
+    # расширение хаба: боковые колонки космоса (0..14 и 45..59) до ограды
+    # тонируются тем же цветом, что и южные ряды — космос вокруг острова
+    # выглядит единым, без шва на уровне ограды.
+    _cosmos_sides = []
+    var side_w := float(WorldMap.ISLAND_X0 * WorldMap.TILE_SIZE)
+    for side_x in [0.0, float((WorldMap.ISLAND_X1 + 1) * WorldMap.TILE_SIZE)]:
+        var side := ColorRect.new()
+        side.name = "CosmosSide"
+        side.position = Vector2(side_x, 0.0)
+        side.size = Vector2(side_w, WorldMap.RAILING_ROW * 16.0)
+        side.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        _world.add_child(side)
+        _cosmos_sides.append(side)
+    # глаза: шести «наблюдателей» расставим по всему космосу один раз
     var eye_positions := [
-        Vector2(4, 48), Vector2(13, 50), Vector2(23, 49),
-        Vector2(8, 53), Vector2(19, 54), Vector2(26, 52),
+        Vector2(8, 48), Vector2(20, 50), Vector2(30, 49),
+        Vector2(38, 53), Vector2(48, 54), Vector2(55, 52),
     ]
     for tile in eye_positions:
         var eye := Sprite2D.new()
@@ -1367,6 +1375,8 @@ func _refresh_cosmos() -> void:
         COSMOS_DREAD.size() - 1)
     var cfg: Dictionary = COSMOS_DREAD[stage]
     _cosmos_overlay.color = cfg["tint"]
+    for side in _cosmos_sides:
+        (side as ColorRect).color = cfg["tint"]
     for i in range(_cosmos_eyes.size()):
         var eye: Sprite2D = _cosmos_eyes[i]
         eye.visible = i < int(cfg["eyes"])
@@ -1493,6 +1503,11 @@ func _build_player() -> void:
     player.collision_layer = 2
     player.collision_mask = 1
     player.position = Vector2(WorldMap.PLAYER_SPAWN) * float(WorldMap.TILE_SIZE) + Vector2(8, 8)
+    # шаг 33: сейв помнит, где герой стоял в хабе — возвращаем его туда,
+    # если точка свободна (карта статична; от старых версий карты и «космоса»
+    # страховка — проверка WorldMap.is_pos_free, иначе спавн у замка)
+    if Game.hub_pos != Vector2.ZERO and WorldMap.is_pos_free(Game.hub_pos):
+        player.position = Game.hub_pos
     _entities.add_child(player)
 
     var shape := CollisionShape2D.new()
@@ -1514,10 +1529,14 @@ func _build_player() -> void:
     _camera.limit_top = 0
     _camera.limit_right = WorldMap.MAP_W * WorldMap.TILE_SIZE
     _camera.limit_bottom = WorldMap.MAP_H * WorldMap.TILE_SIZE
-    _camera.position_smoothing_enabled = true
-    _camera.position_smoothing_speed = 6.0
+    # Шаг 30 (тряска экрана в Хабе): сглаживание выключено. Оно давало
+    # дробную позицию камеры в каждом кадре, из-за чего звёздный фон и
+    # тайлы после привязки к пикселям слегка «плясали». Камера теперь
+    # жёстко следует за героем — карта маленькая, дёргаться нечему.
+    _camera.position_smoothing_enabled = false
     player.add_child(_camera)
     _camera.make_current()
+    _update_camera_zoom()
 
 ## Подставить лист анимаций выбранного героя (публично: используется тестами).
 func _apply_hero_textures() -> void:
@@ -1543,12 +1562,23 @@ func _physics_process(delta: float) -> void:
         moving = dir.length() > 0.05
         # шаг 18: щит воина замедляет шаг; шаг 20: Shift — бег
         # (бег не отменяет штраф щита: под щитом бегать нельзя)
-        var move_speed := SPEED
-        if Game.guard_active:
-            move_speed *= float(Game.ability_info("special").get("speed_mult", 0.5))
-        elif Input.is_action_pressed("run"):
-            move_speed *= RUN_MULT
-        player.velocity = dir * move_speed
+        # шаг 27: во время рывка скорость фиксирована — штрафы щита и
+        # ускорение бега на него не действуют
+        if _dash_time > 0.0:
+            moving = true
+            dir = _dash_dir
+            player.velocity = _dash_dir * Combat.DASH_SPEED
+        else:
+            var move_speed := SPEED
+            # шаг 32: оборотень бегает на четырёх лапах — он быстрее всех
+            if Game.werewolf_active:
+                move_speed *= WEREWOLF_WALK_MULT
+            if Game.guard_active:
+                move_speed *= float(Game.ability_info("special").get("speed_mult", 0.5))
+            elif Input.is_action_pressed("run"):
+                move_speed *= (WEREWOLF_RUN_MULT if Game.werewolf_active
+                    else RUN_MULT)
+            player.velocity = dir * move_speed
         player.move_and_slide()
         if not _edge_hint_shown and player.position.y > 43.0 * WorldMap.TILE_SIZE:
             _edge_hint_shown = true
@@ -1559,6 +1589,10 @@ func _physics_process(delta: float) -> void:
             _show_hint(String(COSMOS_DREAD[stage]["hint"]), 5.0)
     else:
         player.velocity = Vector2.ZERO
+    # шаг 33: позиция героя в хабе — в Game (попадёт в сейв; ЗАГРУЗИТЬ
+    # вернёт героя сюда, если точка свободна). Пишется каждый кадр —
+    # и при ходьбе, и стоя (подсказка/диалог не сбрасывают точку)
+    Game.hub_pos = player.position
     # шаг 6: мана мага — кулдаун заклинания, реген, полёт снарядов
     if _spell_cd > 0.0:
         _spell_cd = maxf(0.0, _spell_cd - delta)
@@ -1572,6 +1606,8 @@ func _physics_process(delta: float) -> void:
     # шаг 7: кулдаун удара
     if _strike_cd > 0.0:
         _strike_cd = maxf(0.0, _strike_cd - delta)
+    if _f_cd > 0.0:
+        _f_cd = maxf(0.0, _f_cd - delta)   # шаг 32: кулдаун F-атаки оружия
     # шаг 18: кулдауны приёмов, удержания, облака газа
     if _q_cd > 0.0:
         _q_cd = maxf(0.0, _q_cd - delta)
@@ -1579,14 +1615,25 @@ func _physics_process(delta: float) -> void:
         _special_cd = maxf(0.0, _special_cd - delta)
     if _t_cd > 0.0:
         _t_cd = maxf(0.0, _t_cd - delta)
+    # шаг 27: боевая система — окно серии, рывок, мерцание i-frames, слоты HUD
+    _combo_left = maxf(0.0, _combo_left - delta)
+    if _combo_left <= 0.0:
+        _combo_idx = 0
+    Combat.tick_dash(self, delta, _world)
+    _update_hero_flicker()
+    HudBuilder.update_slots(self)
     _update_special_hold(delta)
     _update_sword_rain(delta)
+    _update_sword_orbit(delta)   # шаг 32: мечи вокруг воина
+    _update_werewolf_visual()    # шаг 32: спрайт бомжа = оборотень
     _update_leap_flight(delta)
     _update_titan(delta)
     _update_gas(delta)
     _update_bolts(delta)
     _update_walk_anim(delta, moving, dir)
     _update_pointers()
+    # шаг 31: демоны/армия ходят с героем и дерутся с врагами
+    Minions.update_allies(self, delta)
     # шаг 12: разъярённый демон охотится на героя
     _update_demon(delta)
     # шаг 24: Королева ночи охотится на героя (финал)
@@ -1597,43 +1644,7 @@ func _physics_process(delta: float) -> void:
 ## урон Game.damage_hp(DEMON_DAMAGE) раз в DEMON_ATTACK_CD секунд.
 ## Атака продолжается и при открытых окнах — это бой, а не экскурсия.
 func _update_demon(delta: float) -> void:
-    if player == null or not Game.demon_enraged or Game.hp <= 0:
-        return
-    var demon := _demon_record()
-    if demon.is_empty():
-        return
-    var node: Node2D = demon["node"]
-    var spr: AnimatedSprite2D = demon["sprite"]
-    # шаг 18: ослеплён пылью бомжа — не видит героя, не гонится и не бьёт
-    if int(demon.get("blind_until", 0)) > Time.get_ticks_msec():
-        spr.play("idle_down")
-        return
-    var to := player.position - node.position
-    demon["atk_cd"] = maxf(0.0, float(demon.get("atk_cd", 0.0)) - delta)
-    if to.length() > DEMON_ATTACK_RANGE * 0.8:
-        var dirv := to.normalized()
-        var step := DEMON_SPEED * delta
-        var nx := node.position + Vector2(dirv.x, 0.0) * step
-        if not _tile_is_solid(nx):
-            node.position.x = nx.x
-        var ny := node.position + Vector2(0.0, dirv.y) * step
-        if not _tile_is_solid(ny):
-            node.position.y = ny.y
-        if absf(dirv.x) >= absf(dirv.y):
-            spr.play("walk_side")
-            spr.flip_h = dirv.x < 0.0
-        else:
-            spr.play("walk_down" if dirv.y > 0.0 else "walk_up")
-    else:
-        spr.play("idle_down")
-    if to.length() <= DEMON_ATTACK_RANGE and float(demon.get("atk_cd", 0.0)) <= 0.0:
-        demon["atk_cd"] = DEMON_ATTACK_CD
-        Game.damage_hp(DEMON_DAMAGE)
-        Sfx.play("hurt")
-        _spawn_swing(player.position + Vector2(0, -10), Color(0.9, 0.3, 0.25))
-        _spawn_damage_label(player.position + Vector2(0, -40), DEMON_DAMAGE)
-        _spell_poof(player.position + Vector2(0, -14), Color(0.85, 0.3, 0.25))
-        _spawn_hit_impact(player.position + Vector2(0, -14), Color(0.9, 0.35, 0.3))
+    FoeAi.update_demon(self, delta)   # шаг 28: ИИ демона — в компоненте
 
 func _joystick_output() -> Vector2:
     if _joystick == null or not "output" in _joystick:
@@ -1713,6 +1724,9 @@ func _input(event: InputEvent) -> void:
             elif event.button_index == MOUSE_BUTTON_LEFT \
                     and _point_on_interactive(_walk_pos_to_world(local)):
                 _blocked_movement_inputs[identity] = true
+            else:
+                # шаг 27: двойной тап направления — рывок в эту сторону
+                Combat.on_direction_tap(self, StringName(action))
         return
 
 func _on_modal_visibility_changed() -> void:
@@ -1737,6 +1751,10 @@ func _unhandled_input(event: InputEvent) -> void:
             return
     _handle_gameplay_input(event)
 
+## Шаг 30: паузу на Escape не открываем поверх чужих окон и экрана смерти.
+func _pause_input_blocked() -> bool:
+    return _gameplay_input_blocked()
+
 func _gameplay_input_blocked() -> bool:
     return _player_dead or _dialogue.visible or _inventory_ui.visible \
         or _trade_ui.visible or _ending_shown
@@ -1744,6 +1762,12 @@ func _gameplay_input_blocked() -> bool:
 func _handle_gameplay_input(event: InputEvent, walk_position: Vector2 = Vector2.INF) -> void:
     if _player_dead:
         return   # шаг 12: на экране смерти мир не слушает удары и диалоги
+    if event.is_action_pressed("dash") and not event.is_echo() \
+            and not _gameplay_input_blocked() and _leap_flight.is_empty():
+        # шаг 27/30: приём героя (рывок воина) — теперь на пробеле,
+        # в сторону взгляда героя
+        Combat.start_dash(self)
+        return
     if event.is_action_pressed("toggle_inventory"):
         if _trade_ui.visible:
             return
@@ -1855,65 +1879,18 @@ func _facing_vector() -> Vector2:
 ## заклинания (Game.spell_info): урон, скорость, дистанция, цвет и размер;
 ## пустой/отсутствующий — классическая «Магическая стрела» (шаг 12).
 func _spawn_bolt(dir: Vector2, info: Dictionary = {}) -> void:
-    if dir == Vector2.ZERO or _bolt_tex == null:
-        return
-    if info.is_empty():
-        info = Game.spell_info()
-        if info.is_empty():
-            return
-    var bolt := Sprite2D.new()
-    bolt.texture = _bolt_tex
-    var col: Array = info.get("color", [0.55, 0.85, 0.95])
-    bolt.modulate = Color(float(col[0]), float(col[1]), float(col[2]))
-    var size := float(info.get("size", 1.0))
-    bolt.scale = Vector2(size, size)
-    bolt.position = player.position + Vector2(0, -14)
-    bolt.z_index = 10
-    # шаг 19: снаряды светятся и оставляют тающий след
-    var glow := Sprite2D.new()
-    glow.texture = load("res://assets/sprites/props/glow.png")
-    var glow_mat := CanvasItemMaterial.new()
-    glow_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-    glow.material = glow_mat
-    glow.scale = Vector2(1.1, 1.1)
-    glow.modulate = Color(float(col[0]), float(col[1]), float(col[2]), 0.7)
-    bolt.add_child(glow)
-    _world.add_child(bolt)
-    _bolts.append({"node": bolt, "dir": dir.normalized(),
-        "left": float(info["range_px"]), "speed": float(info["speed"]),
-        "damage": int(info["damage"]), "color": bolt.modulate, "trail": 0.0})
+    StrikeFx.spawn_bolt(self, _world, dir, info, _bolt_tex, null, null, 10)
 
 func _update_bolts(delta: float) -> void:
-    if _bolts.is_empty():
-        return
-    for i in range(_bolts.size() - 1, -1, -1):
-        var b: Dictionary = _bolts[i]
-        var node: Sprite2D = b["node"]
-        var step: Vector2 = (b["dir"] as Vector2) * float(b["speed"]) * delta
-        node.position += step
-        if bool(b.get("spin", false)):
-            node.rotation += 10.0 * delta   # метательный топор крутится (шаг 18)
-        b["left"] = float(b["left"]) - step.length()
-        # шаг 19: след из тающих искр за снарядом (и за топором)
-        b["trail"] = float(b.get("trail", 0.0)) + delta
-        if float(b["trail"]) >= 0.05:
-            b["trail"] = 0.0
-            _spawn_trail_dot(node.position, b.get("color",
-                Color(0.55, 0.85, 0.95)))
-        # шаг 9: стрела бьёт первого живого NPC, в чьё тело она попала
-        var target := _npc_at_point(node.position)
-        if not target.is_empty():
-            _spawn_hit_impact(node.position, b.get("color",
-                Color(0.55, 0.85, 0.95)))
-            node.queue_free()
-            _bolts.remove_at(i)
-            _hit_npc(target, int(b["damage"]))
-            continue
-        var faded := float(b["left"]) <= 0.0
-        if faded or _tile_is_solid(node.position):
-            _spell_poof(node.position, b.get("color", Color(0.55, 0.85, 0.95)))
-            node.queue_free()
-            _bolts.remove_at(i)
+    StrikeFx.update_bolts(self, _world, delta, 10)
+
+## Шаг 28 (мост для StrikeFx.update_bolts): цель снаряда в мире — NPC.
+func _bolt_target_at(pos: Vector2) -> Dictionary:
+    return _npc_at_point(pos)
+
+## Шаг 28 (мост для StrikeFx.update_bolts): урон снаряда по NPC.
+func _bolt_hit(target: Dictionary, damage: int) -> void:
+    _hit_npc(target, damage)
 
 ## Живой NPC в точке (шаг 9): прямоугольник тела с учётом масштаба
 ## (демон втрое крупнее — его зона попадания тоже втрое больше).
@@ -1941,27 +1918,128 @@ func _tile_is_solid(pos: Vector2) -> bool:
 
 ## Вспышка-частицы при исчезновении стрелы (и при смерти NPC — серым).
 func _spell_poof(pos: Vector2, color: Color = Color(0.55, 0.85, 0.95)) -> void:
-    var poof := CPUParticles2D.new()
-    poof.position = pos
-    poof.amount = 10
-    poof.lifetime = 0.3
-    poof.one_shot = true
-    poof.explosiveness = 1.0
-    poof.direction = Vector2(0, -1)
-    poof.spread = 180.0
-    poof.initial_velocity_min = 20.0
-    poof.initial_velocity_max = 50.0
-    poof.scale_amount_min = 1.5
-    poof.scale_amount_max = 3.0
-    poof.color = color
-    poof.emitting = true
-    poof.z_index = 10
-    _world.add_child(poof)
-    var tw := create_tween()   # шаг 23: твин умирает вместе со сценой
-    tw.tween_interval(0.6)
-    tw.tween_callback(func() -> void:
-        if is_instance_valid(poof):
-            poof.queue_free())
+    StrikeFx.poof(self, _world, pos, color, 10)
+
+# ------------------------------- приёмы героев с шага 30 на пробеле
+
+## Проверка точки для телепорта мага: тайл под ногами и «корпус» должны
+## быть свободны (за границей карты — твёрдый космос, туда нельзя).
+func _blink_blocked_at(pos: Vector2) -> bool:
+    return _tile_is_solid(pos) or _tile_is_solid(pos + Vector2(0, -8))
+
+# --------------------------------- контракт союзников Minions (шаг 31)
+
+## Точка внутри карты мира (за краем — твёрдый космос; нужно фазовому рывку).
+func _pos_in_map(pos: Vector2) -> bool:
+    var tx := int(floor(pos.x / float(WorldMap.TILE_SIZE)))
+    var ty := int(floor(pos.y / float(WorldMap.TILE_SIZE)))
+    return tx >= 0 and ty >= 0 and tx < WorldMap.MAP_W and ty < WorldMap.MAP_H
+
+## Живые враги мира для союзников: разъярённый демон и Королева в бою
+## (мирный демон и мирные жители целями не считаются).
+func _enemy_records() -> Array:
+    var out: Array = []
+    for npc in _npcs:
+        if bool(npc.get("dead", false)):
+            continue
+        if String(npc["id"]) == "demon" and Game.demon_enraged:
+            out.append(npc)
+        elif bool(npc.get("queen", false)) and Game.queen_hostile:
+            out.append(npc)
+    return out
+
+## Союзник бьёт врага средствами сцены (мир: _hit_npc).
+func _minion_strike_enemy(rec: Dictionary, dmg: int) -> void:
+    _hit_npc(rec, dmg)
+
+## Кулдаун на кнопку призыва после смерти демона (шаг 31).
+func _minion_slot_cd(slot: String, cd: float) -> void:
+    match slot:
+        "q":
+            _q_cd = cd
+        "dash":
+            _dash_cd = cd
+        "t":
+            _t_cd = cd
+        "special":
+            _special_cd = cd
+
+## Зов поверженного босса (Некромант Ctrl, шаг 31): заперт до первой
+## победы над боссом (Game.demon_defeated — сейв v6); после — Таинственный
+## демон встаёт на сторону героя на 10 секунд за ману.
+func _summon_boss(info: Dictionary) -> void:
+    if _special_cd > 0.0:
+        _show_hint("Зов ещё не готов (%.0f с)" % _special_cd, 1.5)
+        return
+    if not Game.demon_defeated:
+        _show_hint("Ни один босс ещё не повержен — зов уходит в пустоту", 2.4)
+        return
+    var now := Time.get_ticks_msec()
+    if Game.boss_summon_until > now:
+        _show_hint("Поверженный босс уже дерётся на твоей стороне", 1.8)
+        return
+    var cost := int(info.get("mana_cost", 60))
+    if Game.mana < cost:
+        _show_hint("Не хватает маны: нужно %d, у тебя %d" % [cost, Game.mana], 2.2)
+        return
+    Game.spend_mana(cost)
+    _special_cd = maxf(0.1, float(info.get("cd", 30.0)))
+    Game.boss_summon_until = now + int(round(float(info.get("duration", 10.0)) * 1000.0))
+    Minions.spawn_ally(self, Minions.build_boss_rec(Game.boss_summon_until))
+    Sfx.play("roar", -4.0)
+    _show_hint("ПОВЕРЖЕННЫЙ БОСС встал на твою сторону на %d секунд!"
+        % int(info.get("duration", 10.0)), 3.0)
+
+## Пинок варвара в мире (пробел): мирная зона — единственный «враг» здесь
+## демон у края улицы (он же босс: на месте держится, но урон получает).
+## Мимо демона пинок не тратится — жителей на пробеле не пинаем.
+func _ctrl_kick(dir: Vector2, info: Dictionary) -> bool:
+    if player == null:
+        return false
+    StrikeFx.kick_pose(self, dir)
+    var demon := _demon_record()
+    var miss := func() -> void:
+        Sfx.play("swing", 0.0, 0.05, 0.75)
+        _spawn_slash_arc(player.position + dir * 16.0 + Vector2(0, -10),
+            Color(1.0, 0.9, 0.6), 0.9)
+    if demon.is_empty():
+        miss.call()
+        return false
+    var dnode: Node2D = demon["node"]
+    if dnode.position.distance_to(player.position) > float(info.get("range", 48.0)):
+        miss.call()
+        _show_hint("Демон вне досягаемости пинка", 1.4)
+        return false
+    var damage := maxi(1, int(round(float(Game.strike_damage())
+        * float(info.get("damage_mult", 1.5)))))
+    _spawn_slash_arc(dnode.position + Vector2(0, -18), Color(1.0, 0.9, 0.6), 1.3)
+    Sfx.play("swing", 0.0, 0.05, 0.72)
+    _dash_cd = maxf(0.1, float(info.get("cd", 10.0)))   # шаг 29: кулдаун пинка
+    _hit_npc(demon, damage)   # метка урона и вспышка — внутри _hit_npc
+    HudBuilder.show_hint(self, "Пинок: демон получил от варвара!", 1.6)
+    return true
+
+## «Хмельной запал» бомжа в мире: анимация питья + зелёный туман над
+## улицей (CanvasModulate создаётся один раз, обычный цвет — белый).
+var _drink_air: CanvasModulate = null
+var _drink_air_tween: Tween = null
+
+func _ctrl_drink_visual(duration: float) -> void:
+    HudBuilder.show_hint(self, "Хмельной запал: %d с урон не проходит!" % int(duration), 2.6)
+    StrikeFx.drink_pose(self, duration)
+    if _drink_air == null:
+        _drink_air = CanvasModulate.new()
+        _drink_air.name = "DrinkAir"
+        _drink_air.color = Color.WHITE
+        _world.add_child(_drink_air)
+    if _drink_air_tween != null and _drink_air_tween.is_valid():
+        _drink_air_tween.kill()
+    _drink_air.color = Color.WHITE
+    var green := Color(0.45, 1.0, 0.45)
+    _drink_air_tween = create_tween()
+    _drink_air_tween.tween_property(_drink_air, "color", green, 0.5)
+    _drink_air_tween.tween_interval(maxf(0.0, duration - 1.0))
+    _drink_air_tween.tween_property(_drink_air, "color", Color.WHITE, 0.5)
 
 # --------------------------------------------- способности героев (шаг 18)
 
@@ -1981,6 +2059,22 @@ func _on_q_pressed() -> void:
             if _barrier_blocks_cast():
                 return
             _cast_spell()
+        # шаг 32: танцующие мечи — крутятся вокруг воина 10 секунд
+        "swords_orbit":
+            if _barrier_blocks_cast():
+                return
+            if _q_cd > 0.0:
+                _show_hint("Мечи ещё не готовы (%.0f с)" % _q_cd, 1.2)
+                return
+            _q_cd = float(info["cd"])
+            _do_swords_orbit(info)
+        # шаг 32: когти оборотня — серия из 5 ударов вперёд
+        "claws":
+            if _q_cd > 0.0:
+                _show_hint("Когти ещё не готовы (%.1f с)" % _q_cd, 1.2)
+                return
+            _q_cd = float(info["cd"])
+            _do_claws(info)
         "whirl":
             if _barrier_blocks_cast():
                 return
@@ -2005,6 +2099,12 @@ func _on_q_pressed() -> void:
                 return
             _q_cd = float(info["cd"])
             _throw_dust(info)
+        # шаг 31: призыв демона — тумблер (вызвал/отпустил), мана нужна
+        "summon":
+            Minions.toggle_summon(self, info)
+        # шаг 31: подъём мёртвых — в мире врагов-трупов нет (в подземельях)
+        "resurrect":
+            _show_hint("Мёртвые враги ждут в подземельях — здесь поднимать некого", 2.2)
         _:
             pass
 
@@ -2189,6 +2289,15 @@ func _on_special_pressed() -> void:
             if not _try_death_leap(info):
                 return   # фальстарт: кулдаун не тратится
             _special_cd = float(info["cd"])
+        # шаг 31: суккуб — тумблер призыва за ману
+        "summon":
+            Minions.toggle_summon(self, info)
+        # шаг 31: зов поверженного босса — заперт до первой победы над боссом
+        "summon_boss":
+            _summon_boss(info)
+        # шаг 32: вой оборотня — демон (босс) оглушён на 3 с
+        "howl":
+            _do_howl(info)
         _:
             pass
 
@@ -2345,6 +2454,15 @@ func _on_t_pressed() -> void:
                 return
             _t_cd = float(info["cd"])
             _do_sword_rain(info)
+        # шаг 31: огромный демон — тумблер призыва за ману
+        "summon":
+            Minions.toggle_summon(self, info)
+        # шаг 31: безумие — в мире врагов нет (только данжи)
+        "madness":
+            _show_hint("Безумие будоражит лишь подземелья — в мире спокойно", 2.2)
+        # шаг 32: превращение бомжа в оборотня (и обратно — тоже T)
+        "werewolf_form":
+            _try_werewolf_form()
         _:
             pass
 
@@ -2401,18 +2519,203 @@ func _update_leap_flight(delta: float) -> void:
         + Vector2(0, -sin(t * PI) * 26.0)
     if t >= 1.0:
         var demon: Dictionary = rec["npc"]
+        var eat := bool(rec.get("eat", false))
         var damage := int(rec["boss_damage"]) + Game.strike_damage()
+        if eat:
+            # шаг 32: набросился оборотня — демон «босс», его не съесть:
+            # урон (база + удар) × множитель приёма
+            damage = maxi(1, int(round((int(rec["boss_damage"])
+                + Game.strike_damage()) * float(rec.get("boss_damage_mult", 1.5)))))
         _spell_poof(player.position + Vector2(0, -8), Color(0.85, 0.75, 0.5))
         _leap_flight = {}
         if not bool(demon.get("dead", false)):
             _hit_npc(demon, damage)
-        _show_hint("Прыжок тряхнул демона: %d урона" % damage, 1.8)
+        if eat:
+            _show_hint("Демон слишком велик, чтобы съесть: %d урона" % damage, 2.0)
+        else:
+            _show_hint("Прыжок тряхнул демона: %d урона" % damage, 1.8)
+
+# ----------------------------------- F-атака и оборотень (шаг 32)
+
+## F-атака оружием в мире (черепа/посохи колдунов, луч мага).
+func _cast_f_attack(info: Dictionary) -> void:
+    if _f_cd > 0.0:
+        _show_hint("%s ещё не готов (%.1f с)" % [String(info.get("title", "Атака")),
+            _f_cd], 1.2)
+        return
+    var cost := int(info.get("mana", 0))
+    if Game.mana < cost:
+        _show_hint("Не хватает маны: нужно %d, у тебя %d" % [cost, Game.mana], 2.0)
+        return
+    Game.spend_mana(cost)
+    _f_cd = maxf(0.1, float(info.get("cooldown", 0.5)))
+    var dir := _facing_vector()
+    DarkCast.fire_attack(self, dir, info)
+
+## Танцующие мечи воина в мире: крутятся вокруг героя, бьют демона при
+## касании (в мире враг один — демон, и Королева в финале).
+func _do_swords_orbit(info: Dictionary) -> void:
+    var count := maxi(1, int(info.get("swords", 3))
+        + int(info.get("swords_per_level", 1)) * (Game.level - 1))
+    _orbit_left = float(info.get("duration", 10.0))
+    var tex: Texture2D = load("res://assets/sprites/icons/sword.png")
+    var color := Game.strike_swing_color()
+    for i in range(_sword_orbit.size()):
+        (_sword_orbit[i]["node"] as Sprite2D).queue_free()
+    _sword_orbit.clear()
+    for i in range(count):
+        var sword := Sprite2D.new()
+        sword.texture = tex
+        sword.rotation = PI * 0.75
+        sword.scale = Vector2(1.4, 1.4)
+        sword.z_index = 11
+        sword.modulate = Color(color.r, color.g, color.b)
+        _world.add_child(sword)
+        _sword_orbit.append({"node": sword, "angle": TAU * float(i) / float(count),
+            "damage": Game.strike_damage(),
+            "hit_radius": float(info.get("hit_radius", 20.0)),
+            "hit_cd": 0.0})
+    Sfx.play("swing", 2.0)
+    Sfx.play("rain", -4.0)
+    _show_hint("Танцующие мечи: %d клинков на %d секунд!"
+        % [count, int(_orbit_left)], 2.4)
+
+func _update_sword_orbit(delta: float) -> void:
+    if _sword_orbit.is_empty() or player == null:
+        return
+    _orbit_left = maxf(0.0, _orbit_left - delta)
+    var radius := 40.0
+    for rec in _sword_orbit:
+        var sword: Sprite2D = rec["node"]
+        rec["angle"] = float(rec["angle"]) + delta * 5.2
+        var ang: float = float(rec["angle"])
+        sword.position = player.position \
+            + Vector2(cos(ang), sin(ang) * 0.8) * radius + Vector2(0, -12)
+        sword.rotation += delta * 9.0
+        # касание: в мире один враг — общий интервал на запись
+        rec["hit_cd"] = maxf(0.0, float(rec["hit_cd"]) - delta)
+        if float(rec["hit_cd"]) > 0.0:
+            continue
+        var hit_something := false
+        for foe in _enemy_records():
+            if bool(foe.get("dead", false)):
+                continue
+            var fnode: Node2D = foe["node"]
+            if fnode.position.distance_to(sword.position) \
+                    > float(rec["hit_radius"]) + 12.0:
+                continue
+            _hit_npc(foe, int(rec["damage"]))
+            hit_something = true
+            break   # один меч — один удар за касание
+        if hit_something:
+            rec["hit_cd"] = 0.45
+    if _orbit_left <= 0.0:
+        for rec in _sword_orbit:
+            var sword: Sprite2D = rec["node"]
+            if is_instance_valid(sword):
+                sword.queue_free()
+        _sword_orbit.clear()
+
+## T бомжа в мире: превращение в оборотня и обратно.
+func _try_werewolf_form() -> void:
+    var info := Game.ability_info("t")
+    if not Game.toggle_werewolf():
+        _show_hint("Смена формы ещё не готова (%.0f с)"
+            % Game.werewolf_cd_left(), 1.6)
+        return
+    _t_cd = maxf(0.1, float(info.get("cd", Game.WEREWOLF_TRANSFORM_CD)))
+    Sfx.play("roar", -2.0)
+    _spell_poof(player.position + Vector2(0, -12), Color(0.6, 0.5, 0.45))
+    StrikeFx.ring(self, _world, player.position + Vector2(0, -10), Color(0.75, 0.55, 0.4), 2.8)
+    if Game.werewolf_active:
+        _show_hint("ОБОРОТЕНЬ! Ты стал огромным и быстрым волком — приёмы сменились", 3.2)
+    else:
+        _show_hint("Бомж снова человек. Через %.0f с сможет обернуться волком"
+            % Game.WEREWOLF_TRANSFORM_CD, 2.6)
+    _update_werewolf_visual()
+    HudBuilder.refresh_slot_icons(self)
+
+func _update_werewolf_visual() -> void:
+    if Game.hero_id != "bum" or player == null or _werewolf_visual == Game.werewolf_active:
+        return
+    _werewolf_visual = Game.werewolf_active
+    if Game.werewolf_active:
+        _hero_sheet_tex = load("res://assets/sprites/chars/werewolf.png")
+        _player_sprite.sprite_frames = _make_frames(_hero_sheet_tex)
+        _player_sprite.scale = Vector2(WEREWOLF_SCALE, WEREWOLF_SCALE)
+    else:
+        var hero: Dictionary = Game.HEROES.get(Game.hero_id, Game.HEROES[Game.DEFAULT_HERO])
+        _hero_sheet_tex = load(String(hero["sheet"]))
+        _player_sprite.sprite_frames = _make_frames(_hero_sheet_tex)
+        _player_sprite.scale = Vector2.ONE
+
+## Когти оборотня в мире: серия ударов по демону, если он рядом.
+func _do_claws(info: Dictionary) -> void:
+    var hits := maxi(1, int(info.get("hits", 5)))
+    var per_hit := Game.werewolf_claw_damage()
+    var demon := _demon_in_radius(40.0)
+    for i in range(hits):
+        var tw := create_tween()
+        tw.tween_interval(0.09 * i)
+        tw.tween_callback(func() -> void:
+            StrikeFx.swing(self, _world,
+                player.position + _facing_vector() * 22.0 + Vector2(0, -12),
+                Color(0.85, 0.45, 0.3), 10))
+    Sfx.play("swing", 2.0)
+    if demon.is_empty():
+        _show_hint("Когти рассекли воздух", 1.2)
+        return
+    _hit_npc(demon, per_hit * hits)
+    _show_hint("Когти оборотня: %d ударов по демону" % hits, 1.8)
+
+## Вой оборотня в мире: демон оглушён на boss_stun_sec (3 с — он босс).
+func _do_howl(info: Dictionary) -> void:
+    if _special_cd > 0.0:
+        _show_hint("Вой ещё не готов (%.0f с)" % _special_cd, 1.5)
+        return
+    var demon := _demon_record()
+    var stunned := false
+    if not demon.is_empty() and not bool(demon.get("dead", false)):
+        var boss_ms := int(round(float(info.get("boss_stun_sec", 3.0)) * 1000.0))
+        demon["stun_until"] = Time.get_ticks_msec() + boss_ms
+        demon["aggro"] = false
+        _spell_poof((demon["node"] as Node2D).position + Vector2(0, -18),
+            Color(0.72, 0.62, 0.9))
+        stunned = true
+    StrikeFx.ring(self, _world, player.position + Vector2(0, -10), Color(0.72, 0.62, 0.9), 3.4)
+    Sfx.play("roar", 0.0)
+    if stunned:
+        _special_cd = maxf(0.1, float(info.get("cd", 12.0)))
+        _show_hint("ВОЙ: демон оглушён на %d секунд!"
+            % int(info.get("boss_stun_sec", 3.0)), 2.4)
+    else:
+        _show_hint("Вой унёлся в пустоту — демона рядом нет", 1.8)
+
+## Наброситься оборотня в мире: демон «босс» — только урон х1.5, не съесть.
+func _werewolf_pounce(_move_dir: Vector2, info: Dictionary) -> bool:
+    var demon := _demon_record()
+    if demon.is_empty():
+        _show_hint("Оборотню некого наброситься — вокруг пусто", 1.8)
+        return false
+    var dnode: Node2D = demon["node"]
+    if dnode.position.distance_to(player.position) > float(info.get("range", 110.0)):
+        _show_hint("Демон далеко: наброситься не выйдет", 1.8)
+        return false
+    _leap_flight = {"npc": demon, "t": 0.0, "from": player.position,
+        "to": dnode.position + Vector2(0, 6),
+        "boss_damage": Game.strike_damage(),
+        "boss_damage_mult": float(info.get("boss_damage_mult", 1.5)),
+        "eat": true}
+    Sfx.play("leap")
+    return true
 
 ## Град мечей в мире: мечи падают вокруг героя, демон в точке падения
 ## получает урон актуального удара (Game.strike_damage).
+## Шаг 32: клинков больше с уровнем героя (swords_per_level × (ур.-1)).
 func _do_sword_rain(info: Dictionary) -> void:
     var radius := float(info["radius"])
-    var count := int(info["swords"])
+    var count := maxi(1, int(info["swords"])
+        + int(info.get("swords_per_level", 0)) * (Game.level - 1))
     var damage := Game.strike_damage()
     var color := Game.strike_swing_color()
     Sfx.play("rain")
@@ -2466,6 +2769,12 @@ func _strike() -> void:
     if Game.hero_immune and not Game.guard_active:
         _show_hint("Барьер поглощает всё внимание — бить нельзя", 1.6)
         return
+    # шаг 32: оружие с F-атакой (тёмное оружие колдунов) и луч мага
+    # заменяют замах выстрелом: снаряд/луч/вспышка за ману, свой кулдаун
+    var f_info := Game.f_attack_info()
+    if not f_info.is_empty():
+        _cast_f_attack(f_info)
+        return
     _strike_cd = STRIKE_COOLDOWN
     if Game.guard_active:
         _strike_cd *= float(Game.ability_info("special").get("strike_cd_mult", 2.0))
@@ -2479,10 +2788,25 @@ func _strike() -> void:
         # промах: просто взмах в сторону взгляда
         _spawn_swing(player.position + dir * 14.0 + Vector2(0, -12), weapon_color)
         return
+    # шаг 27: серия ударов — третий подряд быстрый удар усилен (x1.5).
+    # Случайность боёвки в тестах выключена (Game.combat_variance),
+    # поэтому точные проверки урона существующих шагов не меняются.
+    var combo_next := _combo_idx + 1 if _combo_left > 0.0 else 1
+    var combo_hit := Game.combat_variance and combo_next >= Combat.COMBO_INDEX
+    _combo_idx = 0 if combo_hit else combo_next
+    _combo_left = Combat.COMBO_WINDOW
+    var damage := Game.strike_damage()
+    if combo_hit:
+        damage = maxi(1, int(round(float(damage) * Combat.COMBO_MULT)))
     var npc_node: Node2D = target["node"]
     _spawn_swing((player.position + npc_node.position) * 0.5 + Vector2(0, -12), weapon_color)
-    _spawn_slash_arc(npc_node.position + Vector2(0, -12), weapon_color)
-    _hit_npc(target, Game.strike_damage())
+    # усиленный удар — золотая дуга и более низкий звук
+    _spawn_slash_arc(npc_node.position + Vector2(0, -12),
+        Combat.COMBO_COLOR if combo_hit else weapon_color,
+        1.5 if combo_hit else 1.0)
+    if combo_hit:
+        Sfx.play("swing", 2.0, 0.0, 0.82)
+    _hit_npc(target, damage)
     # шаг 12: не-маг бьёт магическим оружием — в точке цели синеет вспышка
     # «магического эффекта» (бонус урона уже учтён в Game.strike_damage)
     if Game.strike_is_magic_surge():
@@ -2492,15 +2816,20 @@ func _strike() -> void:
 ## всплывающее число, вспышка боли, полоска хп; при нуле — NPC умирает.
 ## Шаг 12: удар по живому демону — регистрируется в Game (register_demon_hit);
 ## после третьего удара демон взрывается яростью (см. _on_demon_enraged).
+## Шаг 27: урон проходит через Combat.roll — разброс ±15%, 10% крит x2
+## (крупная жёлтая цифра и звук crit); в тестах — ровно переданный урон.
 func _hit_npc(npc: Dictionary, damage: int) -> void:
+    var roll := Combat.roll(damage, 0, Game.combat_variance)
+    damage = int(roll["value"])
     var npc_node: Node2D = npc["node"]
     var s := maxi(1, int((npc["data"] as Dictionary).get("scale", 1)))
     npc["hp"] = maxi(0, int(npc["hp"]) - damage)
-    _spawn_damage_label(npc_node.position + Vector2(0, -float(CHAR_H * s) - 2), damage)
+    _spawn_damage_label(npc_node.position + Vector2(0, -float(CHAR_H * s) - 2),
+        damage, bool(roll["crit"]))
     # шаг 19: яркая вспышка в точке попадания
     _spawn_hit_impact(npc_node.position + Vector2(0, -12),
         Color(1.0, 0.85, 0.6))
-    Sfx.play("hit")
+    Sfx.play_variant("hit")
     _flash_npc(npc)
     _show_npc_hp_bar(npc)
     if int(npc["hp"]) <= 0:
@@ -2535,142 +2864,39 @@ func _living_npc_in_front(dir: Vector2) -> Dictionary:
 
 ## Взмах: россыпь искр в точке удара (золотые — оружие, серые — кулаки).
 func _spawn_swing(pos: Vector2, color: Color) -> void:
-    var swing := CPUParticles2D.new()
-    swing.position = pos
-    swing.amount = 14                       # шаг 19: сочнее
-    swing.lifetime = 0.24
-    swing.one_shot = true
-    swing.explosiveness = 1.0
-    swing.direction = Vector2(0, -1)
-    swing.spread = 120.0
-    swing.initial_velocity_min = 60.0
-    swing.initial_velocity_max = 130.0
-    swing.scale_amount_min = 1.6
-    swing.scale_amount_max = 3.2
-    swing.color = color
-    swing.emitting = true
-    swing.z_index = 10
-    _world.add_child(swing)
-    var tw := create_tween()   # шаг 23: твин умирает вместе со сценой
-    tw.tween_interval(0.5)
-    tw.tween_callback(func() -> void:
-        if is_instance_valid(swing):
-            swing.queue_free())
+    StrikeFx.swing(self, _world, pos, color, 10)
 
 ## Видимое оружие (шаг 19): иконка того, что в руках, проносится дугой
 ## в направлении взгляда и тает. Кулаки — без иконки (искры и дуга).
 func _spawn_weapon_swing(dir: Vector2, color: Color) -> void:
-    var icon_path := Game.strike_weapon_icon()
-    if icon_path.is_empty() or not ResourceLoader.exists(icon_path):
-        return
-    if not _weapon_tex_cache.has(icon_path):
-        _weapon_tex_cache[icon_path] = load(icon_path)
-    var tex: Texture2D = _weapon_tex_cache[icon_path]
-    var base := atan2(dir.y, dir.x)
-    var weapon := Sprite2D.new()
-    weapon.texture = tex
-    weapon.position = player.position + dir * 13.0 + Vector2(0, -12)
-    weapon.rotation = base - PI / 2.0 - 1.1
-    weapon.scale = Vector2(1.5, 1.5)
-    weapon.z_index = 11
-    _world.add_child(weapon)
-    var tw := create_tween()
-    tw.set_parallel(true)
-    tw.tween_property(weapon, "rotation", base - PI / 2.0 + 1.1, 0.14) \
-        .set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-    tw.tween_property(weapon, "scale", Vector2(1.15, 1.15), 0.14)
-    tw.tween_property(weapon, "modulate:a", 0.0, 0.12).set_delay(0.1)
-    tw.chain().tween_callback(weapon.queue_free)
+    StrikeFx.weapon_swing(self, _world, dir, color)
 
 ## Дуга удара (шаг 19): белая дуга slash_arc.png в цвет оружия/заклинания.
-func _spawn_slash_arc(pos: Vector2, color: Color) -> void:
-    if _slash_tex == null:
+## Шаг 27: scale_mult — усиленный удар серии рисует дугу крупнее.
+func _spawn_slash_arc(pos: Vector2, color: Color, scale_mult: float = 1.0) -> void:
+    StrikeFx.slash_arc(self, _world, pos, color, 0.4 * scale_mult)
+
+## Мерцание героя при i-frames (шаг 27): попал — 0.5 с полупрозрачности,
+## рывок — 0.25 с. Прозрачность слоя героя (flash-твины живут на спрайте).
+func _update_hero_flicker() -> void:
+    if player == null:
         return
-    var arc := Sprite2D.new()
-    arc.texture = _slash_tex
-    arc.position = pos
-    arc.modulate = Color(color.r, color.g, color.b, 0.9)
-    var mat := CanvasItemMaterial.new()
-    mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-    arc.material = mat
-    arc.rotation = randf_range(-0.5, 0.5)
-    arc.scale = Vector2(0.4, 0.4)
-    arc.z_index = 11
-    _world.add_child(arc)
-    var tw := create_tween()
-    tw.set_parallel(true)
-    tw.tween_property(arc, "scale", Vector2(1.1, 1.1), 0.16) \
-        .set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-    tw.tween_property(arc, "modulate:a", 0.0, 0.2).set_delay(0.08)
-    tw.chain().tween_callback(arc.queue_free)
+    if Game.hero_iframes_left() > 0.0:
+        player.modulate.a = 0.5 + 0.35 * absf(sin(Time.get_ticks_msec() * 0.025))
+    elif not is_equal_approx(player.modulate.a, 1.0):
+        player.modulate.a = 1.0
 
 ## Импакт попадания (шаг 19): яркая вспышка искр из точки удара.
 func _spawn_hit_impact(pos: Vector2, color: Color) -> void:
-    var impact := CPUParticles2D.new()
-    impact.position = pos
-    impact.amount = 14
-    impact.lifetime = 0.18
-    impact.one_shot = true
-    impact.explosiveness = 1.0
-    impact.direction = Vector2(0, -1)
-    impact.spread = 180.0
-    impact.initial_velocity_min = 60.0
-    impact.initial_velocity_max = 140.0
-    impact.scale_amount_min = 1.0
-    impact.scale_amount_max = 2.4
-    impact.color = color
-    impact.emitting = true
-    impact.z_index = 10
-    _world.add_child(impact)
-    var tw := create_tween()   # шаг 23: твин умирает вместе со сценой
-    tw.tween_interval(0.5)
-    tw.tween_callback(func() -> void:
-        if is_instance_valid(impact):
-            impact.queue_free())
+    StrikeFx.hit_impact(self, _world, pos, color, 10)
 
 ## След снаряда (шаг 19): одна тающая искра.
 func _spawn_trail_dot(pos: Vector2, color: Color) -> void:
-    var dot := CPUParticles2D.new()
-    dot.position = pos
-    dot.amount = 1
-    dot.lifetime = 0.28
-    dot.one_shot = true
-    dot.explosiveness = 1.0
-    dot.direction = Vector2.ZERO
-    dot.spread = 0.0
-    dot.initial_velocity_min = 0.0
-    dot.initial_velocity_max = 0.0
-    dot.scale_amount_min = 1.4
-    dot.scale_amount_max = 2.2
-    dot.color = Color(color.r, color.g, color.b, 0.65)
-    dot.emitting = true
-    dot.z_index = 10
-    _world.add_child(dot)
-    var tw := create_tween()   # шаг 23: твин умирает вместе со сценой
-    tw.tween_interval(0.4)
-    tw.tween_callback(func() -> void:
-        if is_instance_valid(dot):
-            dot.queue_free())
+    StrikeFx.trail_dot(self, _world, pos, color, 10)
 
-## Всплывающее число урона над NPC: поднимается и тает.
-func _spawn_damage_label(pos: Vector2, damage: int) -> void:
-    var label := Label.new()
-    label.text = "-%d" % damage
-    label.position = pos + Vector2(-14, 0)
-    label.size = Vector2(28, 14)
-    label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    label.add_theme_font_size_override("font_size", 11)
-    label.add_theme_color_override("font_color", Color(1.0, 0.42, 0.36))
-    label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-    label.add_theme_constant_override("shadow_offset_y", 1)
-    label.z_index = 12
-    _world.add_child(label)
-    var tw := create_tween()
-    tw.set_parallel(true)
-    tw.tween_property(label, "position:y", label.position.y - 16.0, 0.6) \
-        .set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-    tw.tween_property(label, "modulate:a", 0.0, 0.6).set_delay(0.15)
-    tw.chain().tween_callback(label.queue_free)
+## Всплывающее число урона над NPC: поднимается и тает (crit — жёлтая).
+func _spawn_damage_label(pos: Vector2, damage: int, crit: bool = false) -> void:
+    StrikeFx.damage_label(self, _world, pos, damage, false, crit)
 
 ## Короткая вспышка боли на спрайте NPC (твин хранится, чтобы при смерти
 ## его можно было погасить и труп остался серым). Разъярённый демон
@@ -2907,227 +3133,24 @@ func _respawn_player() -> void:
 # ---------------------------------------------------------------- HUD
 
 func _build_hud() -> void:
-    var layer := CanvasLayer.new()
-    layer.name = "HUD"
-    layer.layer = 20
-    add_child(layer)
-
-    # --- шаг 10: нижняя консоль UI — непрозрачная полоса вне экрана ходьбы.
-    # Панель героя и кнопки кладём прямо в слой HUD (абсолютные координаты
-    # в полосе консоли), джойстик — внутрь консоли (см. _build_joystick).
-    _hud_bar = Control.new()
-    _hud_bar.name = "HudBar"
-    _hud_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-    _hud_bar.offset_top = -UI_BAR_H
-    layer.add_child(_hud_bar)
-    var bar_bg := Panel.new()
-    bar_bg.name = "BarBackground"
-    bar_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-    var bar_style := StyleBoxFlat.new()
-    bar_style.bg_color = Color(0.07, 0.08, 0.13)
-    bar_style.border_color = Color(0.5, 0.42, 0.16)
-    bar_style.set_border_width_all(0)
-    bar_style.border_width_top = 2
-    bar_bg.add_theme_stylebox_override("panel", bar_style)
-    _hud_bar.add_child(bar_bg)
-    var bar_top := 0.0   # координаты внутри нижней панели
-
-    # мини-панель героя: портрет + имя + золото (в консоли, шаг 10)
-    var hero_panel := PanelContainer.new()
-    # шаг 25: на ПК джойстика нет — панель героя прижата к левому краю консоли
-    var hero_x := BAR_HERO_POS.x if DisplayServer.is_touchscreen_available() else 8.0
-    hero_panel.position = Vector2(hero_x, bar_top + BAR_HERO_POS.y)
-    var hero_style := UiStyle.flat_style(Color(0.11, 0.12, 0.19), Color(0.5, 0.42, 0.16))
-    hero_style.content_margin_left = 6
-    hero_style.content_margin_right = 10
-    hero_style.content_margin_top = 4
-    hero_style.content_margin_bottom = 4
-    hero_panel.add_theme_stylebox_override("panel", hero_style)
-    _hud_bar.add_child(hero_panel)
-    var hero_row := HBoxContainer.new()
-    hero_row.add_theme_constant_override("separation", 7)
-    hero_panel.add_child(hero_row)
-    var hero_face := TextureRect.new()
-    hero_face.custom_minimum_size = Vector2(28, 28)
-    hero_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    hero_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    hero_face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-    hero_face.texture = load(String(Game.HEROES.get(Game.hero_id, {}).get("portrait", "")))
-    hero_row.add_child(hero_face)
-    var hero_box := VBoxContainer.new()
-    hero_box.add_theme_constant_override("separation", 0)
-    hero_row.add_child(hero_box)
-    var hero_name := Label.new()
-    # шаг 19: рядом с именем — уровень героя
-    hero_name.text = "%s · ур. %d" % [Game.hero_title(), Game.level]
-    hero_name.add_theme_font_size_override("font_size", 10)
-    hero_name.add_theme_color_override("font_color", Color(0.85, 0.88, 0.94))
-    hero_box.add_child(hero_name)
-    _hud_gold = Label.new()
-    _hud_gold.add_theme_font_size_override("font_size", 12)
-    _hud_gold.add_theme_color_override("font_color", COLOR_GOLD)
-    _hud_gold.text = "Золото: %d" % Game.gold
-    hero_box.add_child(_hud_gold)
-    _cb_gold = func(new_gold: int) -> void:
-        if is_instance_valid(_hud_gold):
-            _hud_gold.text = "Золото: %d" % new_gold
-    Game.gold_changed.connect(_cb_gold)
-
-    # шаг 7: чем герой бьёт (кулаки или оружие из сумки); шаг 10: автоперенос —
-    # длинное название оружия не распирает панель в узкой консоли
-    _hud_weapon = Label.new()
-    _hud_weapon.add_theme_font_size_override("font_size", 9)
-    _hud_weapon.add_theme_color_override("font_color", Color(0.62, 0.66, 0.74))
-    _hud_weapon.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    _hud_weapon.text = _weapon_text()
-    hero_box.add_child(_hud_weapon)
-    _cb_equipped = func(_weapon_id: String) -> void:
-        if is_instance_valid(_hud_weapon):
-            _hud_weapon.text = _weapon_text()
-    Game.equipped_changed.connect(_cb_equipped)
-
-    # шаг 6: полоса здоровья героя (видна всем героям)
-    _hud_hp = ProgressBar.new()
-    _hud_hp.custom_minimum_size = Vector2(74, 8)
-    _hud_hp.min_value = 0
-    _hud_hp.max_value = Game.max_hp()
-    _hud_hp.value = Game.hp
-    _hud_hp.show_percentage = false
-    _hud_hp.add_theme_stylebox_override("background", _bar_style(Color(0.09, 0.08, 0.1), Color(0.45, 0.2, 0.2)))
-    _hud_hp.add_theme_stylebox_override("fill", _bar_style(Color(0.72, 0.26, 0.26), Color(0.72, 0.26, 0.26)))
-    hero_box.add_child(_hud_hp)
-    _cb_hp = func(hp: int, max_hp: int) -> void:
-        if is_instance_valid(_hud_hp):
-            _hud_hp.max_value = max_hp
-            _hud_hp.value = hp
-    Game.hp_changed.connect(_cb_hp)
-    # шаг 19: полоса опыта до следующего уровня
-    _hud_xp = ProgressBar.new()
-    _hud_xp.custom_minimum_size = Vector2(74, 5)
-    _hud_xp.min_value = 0
-    _hud_xp.max_value = Game.xp_needed()
-    _hud_xp.value = Game.xp
-    _hud_xp.show_percentage = false
-    _hud_xp.add_theme_stylebox_override("background",
-        _bar_style(Color(0.08, 0.08, 0.12), Color(0.35, 0.3, 0.16)))
-    _hud_xp.add_theme_stylebox_override("fill",
-        _bar_style(Color(0.85, 0.7, 0.2), Color(0.85, 0.7, 0.2)))
-    hero_box.add_child(_hud_xp)
-    _cb_xp = func(xp_value: int, xp_need: int) -> void:
-        if is_instance_valid(_hud_xp):
-            _hud_xp.max_value = xp_need
-            _hud_xp.value = xp_value
-    Game.xp_changed.connect(_cb_xp)
-    _cb_level = func(new_level: int) -> void:
-        if is_instance_valid(hero_name):
-            hero_name.text = "%s · ур. %d" % [Game.hero_title(), new_level]
-        # урон в руках вырос вместе с уровнем — обновить строку HUD
-        if is_instance_valid(_hud_weapon):
-            _hud_weapon.text = _weapon_text()
-    Game.level_up.connect(_cb_level)
-
-    # шаг 6: полоса маны — только у мага (новый показатель при выборе мага)
-    if Game.is_mage():
-        _hud_mana = ProgressBar.new()
-        _hud_mana.custom_minimum_size = Vector2(74, 8)
-        _hud_mana.min_value = 0
-        _hud_mana.max_value = Game.max_mana()
-        _hud_mana.value = Game.mana
-        _hud_mana.show_percentage = false
-        _hud_mana.add_theme_stylebox_override("background", _bar_style(Color(0.08, 0.09, 0.13), Color(0.2, 0.3, 0.45)))
-        _hud_mana.add_theme_stylebox_override("fill", _bar_style(Color(0.3, 0.6, 0.85), Color(0.3, 0.6, 0.85)))
-        hero_box.add_child(_hud_mana)
-        _cb_mana = func(mana: int, max_mana: int) -> void:
-            if is_instance_valid(_hud_mana):
-                _hud_mana.max_value = max_mana
-                _hud_mana.value = mana
-        Game.mana_changed.connect(_cb_mana)
-
-    # --- шаг 10/11: кнопки действий — столбик в правой части консоли,
-    # вертикально центрированы. Порядок прежний: МЕНЮ, СУМКА, (МАГИЯ), УДАР.
-    # Шаг 11: подписи без клавиш (клавиши — в подсказке у края экрана),
-    # размер 64x22 — консоль стала ниже, экран ходьбы больше.
-    # Шаг 20: приёмы и удар живут на клавишах (подсказка у края экрана).
-    # Шаг 21 (автор): СУМКА вернулась в кнопки — инвентарь открывается
-    # одним нажатием, как и раньше.
-    var actions: Array = [
-        {"text": "МЕНЮ", "font": 10, "cb": _on_menu_pressed},
-        {"text": "СУМКА", "font": 9, "cb": _on_bag_pressed},
-        {"text": "СОХРАНИТЬ", "font": 9, "cb": _on_save_pressed},
-        {"text": "ЗАГРУЗИТЬ", "font": 9, "cb": _on_load_pressed},
-    ]
-    var total_h := float(actions.size()) * BAR_BTN_SIZE.y \
-        + float(actions.size() - 1) * (BAR_BTN_STEP - BAR_BTN_SIZE.y)
-    var start_y := (UI_BAR_H - total_h) / 2.0
-    for i in range(actions.size()):
-        var spec: Dictionary = actions[i]
-        var btn := Button.new()
-        btn.text = String(spec["text"])
-        btn.position = Vector2(BAR_BUTTONS_X, bar_top + start_y + float(i) * BAR_BTN_STEP)
-        _style_small_button(btn, int(spec["font"]))
-        btn.size = BAR_BTN_SIZE
-        btn.pressed.connect(spec["cb"] as Callable)
-        btn.set_meta("action_button", true)
-        _hud_bar.add_child(btn)
-
-    _resize_layout.call_deferred()
-
-    _hud_hint = Label.new()
-    # шаг 10: подсказки — у верхнего края экрана ходьбы (временные, гаснут:
-    # внизу теперь консоль UI, перекрывать мир они больше не должны)
-    _hud_hint.set_anchors_preset(Control.PRESET_TOP_WIDE)
-    _hud_hint.offset_top = 4.0
-    _hud_hint.offset_bottom = 42.0
-    _hud_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    _hud_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    _hud_hint.add_theme_font_size_override("font_size", 12)
-    _hud_hint.add_theme_color_override("font_color", Color(0.85, 0.88, 0.94))
-    _hud_hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-    _hud_hint.add_theme_constant_override("shadow_offset_y", 1)
-    layer.add_child(_hud_hint)
-    Controls.bindings_changed.connect(_refresh_controls_hint)
-    _refresh_controls_hint()
+    HudBuilder.build_world(self)   # шаг 28: сборка HUD — в компоненте
 
 ## Строка «В руках: …» в HUD — что у героя в руках и сколько урона.
 func _weapon_text() -> String:
     return "В руках: %s · %d ур." % [Game.strike_title(), Game.strike_damage()]
 
 func _show_hint(text: String, seconds: float) -> void:
-    if _hud_hint == null:
-        return   # шаг 24: HUD ещё не собран — подсказку молча пропускаем
-    # фикс: предыдущий твин подсказки гасим, чтобы два твина не мигали в борьбе
-    if _hint_tween != null and _hint_tween.is_valid():
-        _hint_tween.kill()
-    _hud_hint.text = text
-    _hud_hint.modulate.a = 1.0
-    _hint_tween = create_tween()
-    _hint_tween.tween_interval(seconds)
-    _hint_tween.tween_property(_hud_hint, "modulate:a", 0.0, 0.6)
+    HudBuilder.show_hint(self, text, seconds)   # шаг 28
 
 ## Стиль полосы ХП/маны: рамка 1 px, без внутренних отступов.
 func _bar_style(bg: Color, border: Color) -> StyleBoxFlat:
-    var sb := StyleBoxFlat.new()
-    sb.bg_color = bg
-    sb.border_color = border
-    sb.set_border_width_all(1)
-    sb.content_margin_left = 1.0
-    sb.content_margin_right = 1.0
-    sb.content_margin_top = 1.0
-    sb.content_margin_bottom = 1.0
-    return sb
+    return HudBuilder.bar_style(bg, border)   # шаг 28
 
 ## Кнопка действия в нижней консоли (шаг 11): те же цвета, но компактные
 ## отступы — иначе Button не даст себе стать ниже 29 px и столбик 64x22
 ## не влезет в консоль высотой 112 px.
 func _style_small_button(btn: Button, font_size: int) -> void:
-    UiStyle.style_button(btn, font_size)
-    for state in ["normal", "hover", "pressed"]:
-        var sb := btn.get_theme_stylebox(state)
-        if sb is StyleBoxFlat:
-            (sb as StyleBoxFlat).content_margin_top = 3.0
-            (sb as StyleBoxFlat).content_margin_bottom = 3.0
-            (sb as StyleBoxFlat).content_margin_left = 4.0
-            (sb as StyleBoxFlat).content_margin_right = 4.0
+    HudBuilder.style_small_button(btn, font_size)   # шаг 28
 
 func _on_menu_pressed() -> void:
     Platform.gameplay_stop()
@@ -3142,14 +3165,21 @@ func _on_bag_pressed() -> void:
         _inventory_ui.open()
 
 ## Кнопка СОХРАНИТЬ (шаг 20): быстрое сохранение в текущий слот.
+## Шаг 33: подсказка говорит, ЧТО сохранено (этаж подземелья или хаб).
 func _on_save_pressed() -> void:
     if Game.current_slot < 1:
         _show_hint("Сохранение недоступно: слот не выбран", 2.0)
         return
     Saves.request_save()
-    _show_hint("Игра сохранена в слот %d" % Game.current_slot, 2.0)
+    if Game.dungeon_floor >= 1:
+        _show_hint("Игра сохранена в слот %d (этаж %d)"
+            % [Game.current_slot, Game.dungeon_floor], 2.0)
+    else:
+        _show_hint("Игра сохранена в слот %d (замок)" % Game.current_slot, 2.0)
 
-## Кнопка ЗАГРУЗИТЬ (шаг 20): перечитать текущий слот (мир собирается заново).
+## Кнопка ЗАГРУЗИТЬ (шаг 20; шаг 33 — возврат на сохранённый этаж):
+## перечитать текущий слот; если сейв был в подземелье — вернуть героя
+## на тот этаж, иначе пересобрать мир (хаб).
 func _on_load_pressed() -> void:
     if Game.current_slot < 1 or not Platform.has_slot(Game.current_slot):
         _show_hint("Загрузить нечего: слот пуст", 2.0)
@@ -3158,18 +3188,38 @@ func _on_load_pressed() -> void:
         _show_hint("Сейв повреждён: загрузить не вышло", 2.0)
         return
     Platform.gameplay_stop()
-    get_tree().reload_current_scene()
+    if Game.dungeon_floor >= 1:
+        get_tree().change_scene_to_file(DUNGEON_SCENE)
+    else:
+        get_tree().reload_current_scene()
 
 ## Пересчитывается при изменении размера окна и повороте устройства.
 func _resize_layout() -> void:
     var view_size := get_viewport_rect().size
     if is_instance_valid(_walk_holder):
         _walk_holder.size = Vector2(view_size.x, view_size.y - UI_BAR_H)
+    _update_camera_zoom()
     if is_instance_valid(_hud_bar):
         for child in _hud_bar.get_children():
             if child is Control and child.has_meta("action_button"):
                 child.size = BAR_BTN_SIZE
                 child.position.x = view_size.x - BAR_BTN_SIZE.x - 4.0
+            elif child is Control and child.has_meta("abilities_block"):
+                # шаг 30: блок «СПОСОБНОСТИ» следует за кнопкой ИНВЕНТАРЬ
+                HudBuilder.reposition_abilities_block(self, view_size.x)
+
+## ФИКС ПК (шаг 26): камера не должна показывать пустоту ЗА краями карты.
+## Расширение хаба (2026-11-26): мир 960x896 px — по ширине ровно обзор ПК,
+## космос вокруг острова теперь внутри карты; zoom страхует и ширину
+## (ультраширокие мониторы), и высоту (большие мониторы).
+func _update_camera_zoom() -> void:
+    if _camera == null or not is_instance_valid(_walk_holder):
+        return
+    var map_w := float(WorldMap.MAP_W * WorldMap.TILE_SIZE)
+    var map_h := float(WorldMap.MAP_H * WorldMap.TILE_SIZE)
+    var zoom_needed: float = maxf(1.0, maxf(
+        _walk_holder.size.x / map_w, _walk_holder.size.y / map_h))
+    _camera.zoom = Vector2(zoom_needed, zoom_needed)
 
 
 func _refresh_controls_hint() -> void:
@@ -3179,7 +3229,8 @@ func _refresh_controls_hint() -> void:
     _hud_hint.tooltip_text = ""
     for action in Controls.get_actions():
         _hud_hint.tooltip_text += Controls.get_action_label(action) + ": " + Controls.get_binding_text(action) + "\n"
-    _show_hint(Controls.get_hud_hint(Game.is_mage(),
+    _show_hint(Controls.get_hud_hint(
+        String(Game.ability_info("q").get("kind", "")) == "spell",
         String(Game.ability_info("q").get("hint", "")),
         String(Game.ability_info("special").get("hint", "")),
         String(Game.ability_info("t").get("hint", ""))), 5.0)

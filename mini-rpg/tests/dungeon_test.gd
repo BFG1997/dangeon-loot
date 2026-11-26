@@ -270,7 +270,7 @@ func _ready() -> void:
 
     # --- сейв v7: demon_defeated, уровень и опыт переживают загрузку ---
     var data: Dictionary = Game.to_save_data()
-    check("сейв v8 с demon_defeated, уровнем и опытом (шаг 24)", int(data.get("v", 0)) == 8 \
+    check("сейв v9 с demon_defeated, уровнем и опытом (шаг 24/33)", int(data.get("v", 0)) == 9 \
         and bool(data.get("demon_defeated", false)) \
         and data.has("level") and data.has("xp"))
     Game.new_run(2, "warrior")
@@ -318,7 +318,9 @@ func _ready() -> void:
             armor_count += 1
         elif itype == "robe":
             robe_count += 1
-    check("видов оружия 39 — втрое больше (шаг 22)", weapon_count == 39)
+    # шаг 32: 39 видов шага 22 + 26 тёмных оружий колдунов
+    check("видов оружия 65 — 39 стальных/магических + 26 тёмных (шаг 32)",
+        weapon_count == 65)
     check("видов брони 11 и одеяний 9 (шаг 22; броня включает 2 уника)",
         armor_count == 11 and robe_count == 9)
     var new_icons_ok := true
@@ -398,11 +400,12 @@ func _ready() -> void:
         and int(ItemDB.get_item("key_depths").get("price", -1)) == 0 \
         and int(ItemDB.get_item("key_ancients").get("price", -1)) == 0)
     # звук: 14 SFX-файлов и жуткий эмбиент сгенерированы
-    check("Sfx: 20 эффектов описаны (шаг 21 — голос Ктулху)",
-        Sfx.SOUNDS.size() == 20 and Sfx.SOUNDS.has("surge")
+    check("Sfx: 22 эффекта описаны (шаг 21 — голос Ктулху, шаг 27 — бой)",
+        Sfx.SOUNDS.size() == 22 and Sfx.SOUNDS.has("surge")
         and Sfx.SOUNDS.has("heal") and Sfx.SOUNDS.has("leap")
         and Sfx.SOUNDS.has("rain") and Sfx.SOUNDS.has("roar")
-        and Sfx.SOUNDS.has("slam"))
+        and Sfx.SOUNDS.has("slam") and Sfx.SOUNDS.has("crit")
+        and Sfx.SOUNDS.has("dash"))
     var sfx_files_ok := true
     for s_name in Sfx.SOUNDS:
         if not ResourceLoader.exists(Sfx.SFX_DIR + String(Sfx.SOUNDS[s_name])):

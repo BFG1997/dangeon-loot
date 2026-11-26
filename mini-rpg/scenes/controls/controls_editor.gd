@@ -15,8 +15,12 @@ var held_capture: String = ""
 var back_button: Button
 
 func _ready() -> void:
-    custom_minimum_size = Vector2(328, 580)
+    # ФИКС ПК (шаг 26): высота панели тянется за экраном. Раньше минимум
+    # был жёстко 580 px (мобильные 640) — на ПК-вьюпорте 960x540 панель
+    # вылезала за нижний край, и кнопка «НАЗАД» уходила за экран.
+    custom_minimum_size = Vector2(328, _fit_height())
     add_theme_stylebox_override("panel", UiStyle.panel_style())
+    get_viewport().size_changed.connect(_on_viewport_resized)
     var box := VBoxContainer.new()
     add_child(box)
     var title := Label.new()
@@ -53,6 +57,21 @@ func _ready() -> void:
 func _exit_tree() -> void:
     Controls.bindings_changed.disconnect(_refresh)
     Controls.save_state_changed.disconnect(_save_state)
+    var vp := get_viewport()
+    if vp != null and vp.size_changed.is_connected(_on_viewport_resized):
+        vp.size_changed.disconnect(_on_viewport_resized)
+
+## Актуальная минимальная высота панели: не выше экрана минус поля,
+## но не ниже 320 (список внутри скроллится).
+func _fit_height() -> float:
+    var height := 580.0
+    var vp := get_viewport()
+    if vp != null:
+        height = minf(height, maxf(320.0, vp.get_visible_rect().size.y - 24.0))
+    return height
+
+func _on_viewport_resized() -> void:
+    custom_minimum_size = Vector2(328, _fit_height())
 
 func _button(parent: Node, text: String, callback: Callable) -> Button:
     var button := Button.new()

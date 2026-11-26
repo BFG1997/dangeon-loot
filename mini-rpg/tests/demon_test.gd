@@ -210,7 +210,7 @@ func _ready() -> void:
         (demon["sprite"] as AnimatedSprite2D).modulate == Color.WHITE)
     check("демон вернулся к краю улицы", \
         (demon["node"] as Node2D).position.distance_to(\
-            Vector2(15 * 16 + 8, 45 * 16 - 3)) < 8.0)
+            Vector2(30 * 16 + 8, 45 * 16 - 3)) < 8.0)
     var demon_dist_calm: float = world.player.position.distance_to(\
         (demon["node"] as Node2D).position)
     for _i in 60:
@@ -244,7 +244,7 @@ func _ready() -> void:
     check("жертвы забыты: список убитых пуст", Game.dead_npcs.is_empty())
     check("скидка сброшена (жертв больше нет)", Game.demon_discount_pct() == 0)
     check("товаров у демона больше нет", Game.demon_goods().is_empty())
-    check("сейв v8 хранит demon_defeated (шаг 24)", int(Game.to_save_data().get("v", 0)) == 8 \
+    check("сейв v9 хранит demon_defeated (шаг 24/33)", int(Game.to_save_data().get("v", 0)) == 9 \
         and bool(Game.to_save_data().get("demon_defeated", false)))
     glot = find_npc(world, "glot")
     check("Глот ожил", not bool(glot["dead"]) and int(glot["hp"]) == 50)

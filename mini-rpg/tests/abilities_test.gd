@@ -52,9 +52,9 @@ func _ready() -> void:
     # ================== таблицы и управление ==================
     var kinds_ok := true
     for pair in [["mage", "spell", "hold_barrier", "mana_burst"],
-            ["warrior", "whirl", "hold_shield", "sword_rain"],
+            ["warrior", "swords_orbit", "hold_shield", "sword_rain"],
             ["barbarian", "axe", "death_leap", "titan_rage"],
-            ["bum", "dust", "gas", "second_wind"]]:
+            ["bum", "dust", "gas", "werewolf_form"]]:
         Game.new_run(1, String(pair[0]))
         var q: Dictionary = Game.ability_info("q")
         var s: Dictionary = Game.ability_info("special")
@@ -85,16 +85,20 @@ func _ready() -> void:
         and float(Game.ability_info("special")["radius"]) == 48.0)
     # --- шаг 20: кулдауны снижены, третьи приёмы заданы ---
     Game.new_run(1, "warrior")
-    check("кулдауны снижены снова: вихрь 2 с, щит 3 с (шаг 22)",
-        float(Game.ability_info("q")["cd"]) == 2.0
+    # шаг 32: вихрь воина заменён на «Танцующие мечи» (10 с орбита)
+    check("мечи воина: кулдаун 14 с, щит 3 с (шаги 22/32)",
+        float(Game.ability_info("q")["cd"]) == 14.0
+        and String(Game.ability_info("q")["kind"]) == "swords_orbit"
         and float(Game.ability_info("special")["cd"]) == 3.0)
     Game.new_run(1, "mage")
     check("выплеск магии: 20 урона за уровень, кулдаун 14 с (шаг 22)",
         int(Game.ability_info("t")["damage_per_level"]) == 20
         and float(Game.ability_info("t")["cd"]) == 14.0)
     Game.new_run(1, "bum")
-    check("передышка бомжа: кулдаун 25 с (шаг 22)",
-        float(Game.ability_info("t")["cd"]) == 25.0)
+    # шаг 32: T бомжа — превращение в оборотня (кулдаун 30 с, задал автор)
+    check("оборотень бомжа: кулдаун смены формы 30 с (шаг 32)",
+        String(Game.ability_info("t")["kind"]) == "werewolf_form"
+        and float(Game.ability_info("t")["cd"]) == 30.0)
     Game.new_run(1, "barbarian")
     check("прыжок варвара на пробеле: боссу 200 урона, 15 с, радиус 140",
         int(Game.ability_info("special")["boss_damage"]) == 200
@@ -107,20 +111,24 @@ func _ready() -> void:
     check("хватки и броска больше нет (шаг 22)",
         not Game.ABILITIES["barbarian"].has("grab_throw")
         and "grab_throw" not in String(Game.ABILITIES["barbarian"]["special"]["id"]))
-    check("действие special есть и на пробеле по умолчанию",
-        InputMap.has_action("special")
-        and Controls.get_bindings("special").size() > 0
-        and (Controls.get_bindings("special")[0] as InputEventKey).physical_keycode == KEY_SPACE)
-    check("у Controls десять действий, все приёмы подписаны",
+    check("действие special теперь на Ctrl, приём героя (dash) — на пробеле",
+        InputMap.has_action("special") and InputMap.has_action("dash")
+        and (InputMap.action_get_events("special")[0] as InputEventKey).physical_keycode == KEY_CTRL
+        and Controls.get_bindings("dash").size() > 0
+        and (Controls.get_bindings("dash")[0] as InputEventKey).physical_keycode == KEY_SPACE)
+    check("у Controls десять действий, все приёмы подписаны (шаг 30)",
         Controls.get_actions().size() == 10
-        and Controls.get_action_label(&"special") != ""
+        and not Controls.get_actions().has(&"special")
+        and Controls.get_actions().has(&"dash")
+        and Controls.get_action_label(&"dash") != ""
         and Controls.get_action_label(&"special2") == "Приём T"
         and Controls.get_action_label(&"cast_spell").contains("Q"))
-    var hint := Controls.get_hud_hint(false, "Вихрь клинка", "Оборона щитом",
+    var hint := Controls.get_hud_hint(false, "Танцующие мечи", "Оборона щитом",
         "Град мечей")
-    check("подсказка HUD называет приёмы и бег", hint.contains("Вихрь клинка")
+    check("подсказка HUD называет приёмы, пробел и бег", hint.contains("Танцующие мечи")
         and hint.contains("Оборона щитом") and hint.contains("Град мечей")
-        and hint.contains("Shift — бег"))
+        and hint.contains("Shift — бег") and hint.contains("Пробел — ")
+        and hint.contains("Ctrl — Оборона щитом"))
 
     # ================== неуязвимость и щит (уровень Game) ==================
     Game.new_run(1, "warrior")
@@ -198,16 +206,25 @@ func _ready() -> void:
                     and foe_scan != foe_a:
                 foe_b = foe_scan
                 break
-    (foe_a["node"] as Node2D).position = dungeon.player.position + Vector2(0, 24)
-    (foe_b["node"] as Node2D).position = dungeon.player.position + Vector2(28, 0)
+    (foe_a["node"] as Node2D).position = dungeon.player.position + Vector2(0, 30)
+    (foe_b["node"] as Node2D).position = dungeon.player.position + Vector2(30, 0)
     var a_hp := int(foe_a["hp"])
     var b_hp := int(foe_b["hp"])
     dungeon._on_q_pressed()
-    check("вихрь бьёт всех вокруг оружием (кулаки 5)",
-        int(foe_a["hp"]) == a_hp - 5 and int(foe_b["hp"]) == b_hp - 5)
+    # шаг 32: мечи крутятся 10 секунд и бьют при касании
+    check("мечи призваны: орбита активна 10 с (шаг 32)",
+        dungeon._sword_orbit.size() == 3 and dungeon._orbit_left > 9.0
+        and dungeon._q_cd > 0.0)
+    # мечи кружат: враги около героя получают удары при касании
+    for i in range(300):
+        await get_tree().physics_frame
+        if int(foe_a["hp"]) < a_hp and int(foe_b["hp"]) < b_hp:
+            break
+    check("мечи бьют всех вокруг при касании",
+        int(foe_a["hp"]) < a_hp and int(foe_b["hp"]) < b_hp)
     dungeon._on_q_pressed()
-    check("вихрь на кулдауне не бьёт второй раз",
-        int(foe_a["hp"]) == a_hp - 5 and dungeon._q_cd > 0.0)
+    check("мечи на кулдауне не призываются второй раз",
+        dungeon._sword_orbit.size() == 3 and dungeon._q_cd > 0.0)
     dungeon._on_special_pressed()
     check("щит включился (неуязвимость + guard)",
         Game.hero_immune and Game.guard_active)
@@ -340,7 +357,7 @@ func _ready() -> void:
     check("топор нанёс 100 урона первому врагу на пути",
         bool(axe_foe.get("dead", false)) and dungeon._bolts.is_empty()
         and Game.gold > gold0)
-    # смертельный прыжок (шаг 22: теперь на ПРОБЕЛЕ): не-босс умирает
+    # смертельный прыжок (шаг 22: спец-приём; шаг 30: клавиша CTRL): не-босс умирает
     var leap_foe: Dictionary = {}
     for foe_scan in dungeon._foes:
         if not bool(foe_scan.get("dead", false)) \
@@ -352,7 +369,7 @@ func _ready() -> void:
         (leap_foe["node"] as Node2D).position \
             = dungeon.player.position + Vector2(30, 0)
         dungeon._on_special_pressed()
-        check("прыжок с пробела: полёт запущен, кулдаун 15 с",
+        check("прыжок спец-приёмом: полёт запущен, кулдаун 15 с",
             not dungeon._leap_flight.is_empty() and dungeon._special_cd > 14.0)
         for i in range(120):
             await get_tree().physics_frame
@@ -447,7 +464,10 @@ func _ready() -> void:
         Game.hero_immune = false
         demon["atk_cd"] = 0.0
         await get_tree().create_timer(0.7).timeout
-        check("без барьера демон бьёт (8 урона)", Game.hp == hp_hero - 8)
+        # шаг 26: урон берём из константы сцены — шаг 25 поднял его 8 → 10,
+        # захардкоженное ожидание ломало тест при каждом ребалансе.
+        check("без барьера демон бьёт (урон демона)",
+            Game.hp == hp_hero - int(world.DEMON_DAMAGE))
     world.free()
     await get_tree().process_frame
     Game.hero_immune = false

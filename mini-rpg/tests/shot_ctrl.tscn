@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/shot_ctrl.gd" id="1_shot_ctrl"]
+
+[node name="ShotCtrl" type="Node"]
+script = ExtResource("1_shot_ctrl")

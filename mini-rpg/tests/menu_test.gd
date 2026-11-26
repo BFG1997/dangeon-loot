@@ -1,6 +1,7 @@
 ## Интерактивный тест главного меню без ручного ввода:
-## эмулирует тапы по сундуку, проверяет вылет кнопок, панель старта,
-## слоты, бонус, сброс. Запуск: godot --headless --path . res://tests/menu_test.tscn
+## эмулирует тап по сундуку (все пункты вылетают каскадом), панель старта,
+## слоты, сброс. Бонус из меню удалён (шаг 29). Запуск:
+## godot --headless --path . res://tests/menu_test.tscn
 extends Node
 
 var failed := 0
@@ -42,7 +43,7 @@ func restore() -> void:
         Game.current_slot = last
 
 func _ready() -> void:
-    print("MENU TEST: сундук, кнопки, старт, слоты, бонус")
+    print("MENU TEST: сундук, кнопки, старт, слоты")
     snapshot()
     Saves.wipe_all_slots()
     Game.meta["last_slot"] = 0
@@ -61,22 +62,29 @@ func _ready() -> void:
     var chest: TextureRect = menu.get_node("Chest")
     check("исходно кнопок нет", buttons.get_child_count() == 0)
 
+    # шаг 29: ОДИН тап — сундук открывается и все пункты вылетают по очереди
     _tap(menu)
-    await get_tree().create_timer(0.7).timeout
-    check("1-й тап: вылетела «НАЧАТЬ ИГРУ»", buttons.get_child_count() == 1 and (buttons.get_child(0) as Button).text == "НАЧАТЬ ИГРУ")
+    await get_tree().create_timer(0.25).timeout
+    check("каскад пошёл: кнопки появляются по очереди (не все сразу)",
+        buttons.get_child_count() >= 1 and buttons.get_child_count() < 3)
+    await get_tree().create_timer(1.0).timeout
+    check("после одного тапа все 3 кнопки вылетели",
+        buttons.get_child_count() == 3)
+    check("порядок: старт, настройки, авторы",
+        (buttons.get_child(0) as Button).text == "НАЧАТЬ ИГРУ" \
+        and (buttons.get_child(1) as Button).text == "НАСТРОЙКИ" \
+        and (buttons.get_child(2) as Button).text == "АВТОРЫ")
     check("сундук сменил текстуру на открытую", chest.texture.resource_path == "res://assets/sprites/chest_open.png")
-
-    _tap(menu)
-    _tap(menu)
-    _tap(menu)
-    await get_tree().create_timer(0.7).timeout
-    check("после 4 тапов все кнопки на месте", buttons.get_child_count() == 4)
-    check("кнопки выстроились сверху вниз", (buttons.get_child(0) as Control).position.y < (buttons.get_child(3) as Control).position.y)
-    check("первая кнопка в расчётном слоте", absf((buttons.get_child(0) as Control).position.y - 316.0) < 2.0)
+    check("кнопки выстроились сверху вниз", (buttons.get_child(0) as Control).position.y < (buttons.get_child(2) as Control).position.y)
+    # шаг 26 (ПК): слот кнопки считается от размера экрана (_slot_position),
+    # поэтому ожидание берём из той же формулы, а не из мобильных 316 px.
+    var expected_slot_y: float = menu._slot_position(0).y
+    check("первая кнопка в расчётном слоте",
+        absf((buttons.get_child(0) as Control).position.y - expected_slot_y) < 2.0)
 
     _tap(menu)
     await get_tree().create_timer(0.3).timeout
-    check("лишний тап не добавляет кнопок", buttons.get_child_count() == 4)
+    check("лишний тап не добавляет кнопок", buttons.get_child_count() == 3)
 
     # --- панель старта: Новая игра / Продолжить / Загрузить ---
     menu._on_menu_button("start")
@@ -126,25 +134,10 @@ func _ready() -> void:
     check("строка авторов ждёт имя автора", (menu.get_node("PanelLayer/Center/AuthorsPanel/VBox/IdeaLabel") as Label).text.contains("впиши себя"))
     menu._close_panel()
 
-    # --- ежедневный бонус: 50-200 золота + фиолетовая добыча ---
-    menu._on_menu_button("bonus")
-    await get_tree().create_timer(0.2).timeout
-    check("панель бонуса открылась", menu.get_node("PanelLayer/Center/BonusPanel").visible)
-    check("кнопка подарка видна", menu.get_node("PanelLayer/Center/BonusPanel/VBox/ClaimButton").visible)
-    var gold_pre: int = Game.gold
-    menu._on_claim_bonus_pressed()
-    var reward_text: String = (menu.get_node("PanelLayer/Center/BonusPanel/VBox/ResultLabel") as Label).text
-    check("бонус начислил золото 50-200", Game.gold >= gold_pre + 50 and Game.gold <= gold_pre + 200)
-    check("в награде упомянута фиолетовая добыча", reward_text.contains("золота") and reward_text.contains("добыча"))
-    check("кнопка подарка скрыта после получения", not menu.get_node("PanelLayer/Center/BonusPanel/VBox/ClaimButton").visible)
-    check("повторная выдача не происходит", Game.claim_daily_bonus().is_empty())
-    menu._close_panel()
-
-    menu._on_menu_button("bonus")
-    await get_tree().create_timer(0.2).timeout
-    var repeat_text: String = (menu.get_node("PanelLayer/Center/BonusPanel/VBox/ResultLabel") as Label).text
-    check("повторное открытие: приходи завтра", repeat_text.contains("завтра"))
-    menu._close_panel()
+    # --- шаг 29: бонуса в меню больше нет — ни кнопки, ни панели ---
+    check("пункта «бонус» в меню нет", not menu.MENU_ITEMS.any(
+        func(item: Dictionary) -> bool: return String(item["id"]) == "bonus"))
+    check("панель бонуса удалена из сцены", menu.get_node_or_null("PanelLayer/Center/BonusPanel") == null)
 
     # Возвращаем исходное состояние, чтобы тест не портил сейвы.
     restore()

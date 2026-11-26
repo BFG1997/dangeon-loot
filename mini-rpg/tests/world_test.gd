@@ -63,7 +63,7 @@ func _ready() -> void:
     # Ground живёт внутри SubViewport (шаг 10/11): WalkScreen/WalkViewport/WorldContent
     var ground: TileMapLayer = world.get_node("WalkScreen/WalkViewport/WorldContent/Ground")
     check("тайлмап заполнен", ground.get_used_cells().size() == WorldMap.MAP_W * WorldMap.MAP_H)
-    check("размер карты 30x56", WorldMap.MAP_W == 30 and WorldMap.MAP_H == 56)
+    check("размер карты 60x56 (расширение хаба)", WorldMap.MAP_W == 60 and WorldMap.MAP_H == 56)
     check("спавн в замке", WorldMap.PLAYER_SPAWN.y <= WorldMap.CASTLE_LAST_ROW)
 
     var player: CharacterBody2D = world.player
@@ -296,7 +296,7 @@ func _ready() -> void:
     var walker: CharacterBody2D = world.player
     var space: PhysicsDirectSpaceState2D = walker.get_world_2d().direct_space_state
     var query := PhysicsPointQueryParameters2D.new()
-    query.position = Vector2(240, WorldMap.RAILING_ROW * 16.0 + 8.0)
+    query.position = Vector2(480, WorldMap.RAILING_ROW * 16.0 + 8.0)   # середина острова
     query.collision_mask = 1
     var hits: Array = space.intersect_point(query, 4)
     check("ограда края имеет коллизию", hits.size() > 0)
@@ -311,7 +311,7 @@ func _ready() -> void:
 
     # --- игрок не проваливается за край ---
     var controls_hint: String = world._hud_hint.text   # подсказка до сообщений у края
-    player.position = Vector2(240, 45 * 16.0 - 6.0)
+    player.position = Vector2(480, 45 * 16.0 - 6.0)
     Input.action_press("move_down")
     for _i in 90:
         await get_tree().physics_frame
@@ -319,7 +319,7 @@ func _ready() -> void:
     check("ограда остановила игрока", player.position.y < WorldMap.RAILING_ROW * 16.0 + 2.0)
 
     # --- замок: стены верхнего ряда не проходимы ---
-    player.position = Vector2(8 * 16.0 + 8.0, 2 * 16.0 + 8.0)
+    player.position = Vector2(23 * 16.0 + 8.0, 2 * 16.0 + 8.0)
     Input.action_press("move_up")
     for _i in 60:
         await get_tree().physics_frame
@@ -365,17 +365,20 @@ func _ready() -> void:
     check("удар на F по умолчанию", f_attack)
     check("действие run есть и на Shift", InputMap.has_action("run") \
         and (InputMap.action_get_events("run")[0] as InputEventKey).physical_keycode == KEY_SHIFT)
-    # шаг 20: в HUD только МЕНЮ / СОХРАНИТЬ / ЗАГРУЗИТЬ
+    # шаг 30: в HUD одна кнопка — ИНВЕНТАРЬ (меню/сейвы — в паузе на Escape)
     var hud_texts: Array[String] = []
     for child in world._hud_bar.get_children():
         if child is Button and child.has_meta("action_button"):
             hud_texts.append((child as Button).text)
-    check("в HUD четыре кнопки: меню, сумка, сохранить, загрузить",
-        hud_texts == ["МЕНЮ", "СУМКА", "СОХРАНИТЬ", "ЗАГРУЗИТЬ"])
+    check("в HUD одна кнопка: ИНВЕНТАРЬ",
+        hud_texts == ["ИНВЕНТАРЬ"])
     check("HUD показывает «В руках: Кулаки»", world._hud_weapon.text.contains("Кулаки"))
 
     # --- джойстик ---
-    check("VirtualJoystick подключён", world._joystick != null)
+    # шаг 26 (ПК): джойстик нужен только на сенсорных экранах (шаг 25);
+    # в headless-прогоне сенсорного ввода нет — джойстик не спавнится.
+    check("VirtualJoystick подключён",
+        world._joystick != null or not DisplayServer.is_touchscreen_available())
 
     # --- шаг 20: дверь 3 «Глубины Р'льеха» заперта до победы в ските ---
     world._open_door_dialog("dungeon_3")
@@ -392,7 +395,7 @@ func _ready() -> void:
     check("точка NPC интерактивна (клик по ней не бьёт)", \
         world._point_on_interactive(npc_pos + Vector2(0, -16)))
     check("пустая точка мира не интерактивна", \
-        not world._point_on_interactive(Vector2(180, 300)))
+        not world._point_on_interactive(Vector2(420, 300)))
 
     # --- жизненный цикл площадки ---
     check("gameplay_start вызван миром", "gameplay_start" in Platform.calls)
@@ -407,10 +410,10 @@ func _ready() -> void:
     await get_tree().process_frame
     await get_tree().process_frame
     check("HUD мага: полоса маны есть", world_mage._hud_mana != null)
-    check("HUD мага: те же четыре кнопки без приёмов (шаг 21)",
+    check("HUD мага: одна кнопка ИНВЕНТАРЬ (шаг 30)",
         world_mage._hud_bar.get_children().filter(
             func(c: Node) -> bool: return c is Button \
-                and c.has_meta("action_button")).size() == 4)
+                and c.has_meta("action_button")).size() == 1)
     check("мана мага полная (70)", Game.mana == 70 and Game.max_mana() == 70)
     check("лист анимаций героя — маг", world_mage._hero_sheet_tex.resource_path.contains("mage"))
     check("каст через Game списал ману", Game.cast_spell() \
@@ -445,7 +448,7 @@ func _ready() -> void:
     check("стрела исчезла при попадании", world_mage._bolts.is_empty())
     check("полоска хп Злуса показана после магии", (zl["hp_bar"] as ProgressBar).visible)
     # --- шаг 12: залп магического оружия — веер снарядов вместо одной стрелы ---
-    world_mage.player.position = Vector2(240, 30 * 16.0)   # пустая улица
+    world_mage.player.position = Vector2(480, 30 * 16.0)   # пустая улица
     world_mage._facing = "side"
     world_mage._player_sprite.flip_h = false
     Game.add_item({"item_id": "wand_lightning", "title": "Жезл молний", "quality": "gray"})

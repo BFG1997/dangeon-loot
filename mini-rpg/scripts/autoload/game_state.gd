@@ -20,8 +20,18 @@
 ## Шаг 25 (баланс): урон и максимум ХП растут на +35% за уровень
 ## (hero_level_mult) вместо удвоения — удвоение ломало эндгейм;
 ## уровень лечит героя.
+## Шаг 27 (боевая система): i-frames героя (мерцание после попадания и
+## рывок) и боевая случайность (разброс урона, криты, комбо) — случайность
+## включается в живой игре и отключается в тестовом прогоне (under_test).
 ## Порог опыта — XP_BASE * level * level (см. add_xp). Сейв v7: в него
 ## добавлены level и xp (старые сейвы мигрируют: уровень 1, опыта 0).
+## Шаг 31 (Демоноолог и Некромант): два новых класса-колдуна. У обоих есть
+## мана (полоса в HUD, зелья маны, одеяния) — она нужна не для каста, а
+## для ПРИЗЫВОВ: у Демоноолога — четыре демона (Q/пробел/T/Ctrl, тумблер:
+## нажал — вызвал, нажал ещё раз — отпустил; кулдаун появляется только
+## после смерти демона, по силе демона), у Некроманта — армия поднятых
+## врагов (Q) и зов поверженного босса (Ctrl). Прокачка растит им ману
+## (mana_per_level) и силу призывов.
 ## Шаг 20 (полировка): кулдауны приёмов снижены, звук мягче, в HUD
 ## остались только МЕНЮ/СОХРАНИТЬ/ЗАГРУЗИТЬ, бег на Shift, и у каждого
 ## класса ТРЕТИЙ приём на T (слот "t" в ABILITIES): маг тратит всю ману
@@ -111,6 +121,25 @@ const HEROES: Dictionary = {
         "start_gold": 60,   # шаг 25: подтверждено (между варваром 50 и воином 100)
         "hp": 30, "mana": 70,
     },
+    # Шаг 31: колдуны. У Демоноолога мана только на ПРИЗЫВ демонов (сам слаб:
+    # удар оружием х0.75), у Некроманта — на армию мёртвых. mana_per_level —
+    # прирост максимума маны за уровень (шаг 25-логика уровней).
+    "demonologist": {
+        "title": "Демоноолог",
+        "flavor": "Сам он слаб, но его сила — чужая: демоны дерутся за него.",
+        "sheet": "res://assets/sprites/chars/demonologist.png",
+        "portrait": "res://assets/sprites/portraits/demonologist.png",
+        "start_gold": 45,
+        "hp": 22, "mana": 60, "mana_per_level": 10,
+    },
+    "necromancer": {
+        "title": "Некромант",
+        "flavor": "Для него смерть врага — не конец, а пополнение армии.",
+        "sheet": "res://assets/sprites/chars/necromancer.png",
+        "portrait": "res://assets/sprites/portraits/necromancer.png",
+        "start_gold": 55,
+        "hp": 38, "mana": 90, "mana_per_level": 5,
+    },
 }
 const DEFAULT_HERO := "warrior"
 
@@ -123,9 +152,13 @@ const HAND_TITLE := "Кулаки"
 ## Шаг 12: множители урона обычного (не магического) оружия по классам.
 ## Маг клинками машет плохо (х0.5), варвар — сильнее всех (х2; у мага
 ## относительно варвара выходит в 4 раза слабее). Остальные — х1.
+## Шаг 31: Демоноолог силён не оружием, а демонами (х0.75); Некромант
+## чуть слабее воина (х0.9).
 const CLASS_STRIKE_MULT := {
     "mage": 0.5,
     "barbarian": 2.0,
+    "demonologist": 0.75,
+    "necromancer": 0.9,
 }
 ## Шаг 12: магический эффект магического оружия у не-магов (воин и бомж):
 ## удар наносит обычный урон + 25% сверх (вспышка цвета оружия).
@@ -217,27 +250,49 @@ func add_xp(amount: int) -> void:
 ## подобраны «не скучными» и легко правятся здесь, в одной таблице.
 ## Шаг 20: кулдауны снижены по просьбе автора (вихрь 3.5, щит 6, топор 3,
 ## бросок 5, пыль 4.5, газ 5); добавлен третий приём "t" — клавиша T.
-## Слоты приёмов: "q" (Q), "special" (пробел), "t" (T). kind приёмов "t":
+## Слоты приёмов: "q" (Q), "dash" (пробел — приём героя, шаг 30),
+## "t" (T); "special" (щит/барьер/газ/прыжок) переехал на Ctrl.
+## kind приёмов "t":
 ##   mana_burst  — вся мана в волну: 20 × уровень всем врагам карты;
 ##   second_wind — мгновенное полное лечение;
 ##   death_leap  — прыжок на врага: не-босс умирает, боссу boss_damage
 ##                 плюс урон актуального удара; полёт с анимацией;
 ##   sword_rain  — град мечей вокруг героя: swords клинков, каждое
-##                 попадание в hit_radius наносит Game.strike_damage().
+##                 попадание в hit_radius наносит Game.strike_damage();
+##                 шаг 32: клинков становится больше с уровнем героя
+##                 (swords + swords_per_level × (уровень-1));
+##   swords_orbit— шаг 32 (задал автор): на 10 секунд вокруг воина
+##                 появляются мечи, крутятся и бьют ВСЕХ при касании;
+##                 с уровнем мечей всё больше;
+##   claws       — шаг 32: когти оборотня — серия из 5 ударов вперёд;
+##   pounce      — шаг 32: наброситься на врага и СЪЕСТЬ его (не босс);
+##                 от съеденного остаётся мясо; боссу — урон и толчок;
+##   howl        — шаг 32: вой оборотня — все враги этажа оглушены
+##                 stun_sec (босс — boss_stun_sec);
+##   werewolf_form — шаг 32: превращение бомжа в оборотня и обратно
+##                 (кулдаун 30 с в обе стороны, задал автор).
 const ABILITIES := {
     "warrior": {
-        "q": {"id": "whirl", "title": "Вихрь клинка", "btn": "ВИХРЬ",
-            "hint": "Вихрь клинка", "kind": "whirl",
-            "cd": 2.0, "radius": 44.0},
+        # Шаг 32: вместо скучного вихря — мечи, крутящиеся вокруг воина
+        # 10 секунд и бьющие всех при касании; с уровнем их больше.
+        "q": {"id": "swords_orbit", "title": "Танцующие мечи", "btn": "МЕЧИ",
+            "hint": "Мечи крутятся вокруг воина", "kind": "swords_orbit",
+            "cd": 14.0, "duration": 10.0, "swords": 3, "swords_per_level": 1,
+            "hit_radius": 20.0, "hit_cd": 0.45},
         "special": {"id": "shield", "title": "Оборона щитом", "btn": "ЩИТ",
             "hint": "Оборона щитом", "kind": "hold_shield",
             "cd": 3.0, "max_hold": 4.0, "speed_mult": 0.5,
             "damage_mult": 0.5, "strike_cd_mult": 2.0},
         # Шаг 20: третий приём (T) — град мечей вокруг героя.
+        # Шаг 32: мечей больше с уровнем (swords_per_level).
         "t": {"id": "sword_rain", "title": "Град мечей", "btn": "ГРАД",
             "hint": "Град мечей", "kind": "sword_rain",
             "cd": 18.0, "radius": 110.0, "swords": 12,
-            "hit_radius": 20.0},
+            "swords_per_level": 2, "hit_radius": 20.0},
+        # Шаг 29/30 (пробел — приём героя): у воина рывок остаётся, но
+        # кулдаун ужат до 1 с — им теперь можно жить в бою.
+        "dash": {"id": "dash", "title": "Рывок", "btn": "РЫВОК",
+            "hint": "Рывок", "kind": "dash", "cd": 1.0},
     },
     "barbarian": {
         "q": {"id": "axe", "title": "Метательный топор", "btn": "ТОПОР",
@@ -255,6 +310,11 @@ const ABILITIES := {
             "btn": "ГНЕВ", "hint": "Гнев титана", "kind": "titan_rage",
             "cd": 45.0, "duration": 4.0, "damage_mult": 4.0,
             "scale": 1.55},
+        # Шаг 29/30 (пробел): пинок — враг в конусе удара отлетает (кроме боссов)
+        # и получает х1.5 от урона актуального удара. Кулдаун 10 с.
+        "dash": {"id": "kick", "title": "Пинок", "btn": "ПИНОК",
+            "hint": "Пинок", "kind": "kick", "cd": 10.0,
+            "range": 48.0, "damage_mult": 1.5, "knockback": 64.0},
     },
     "bum": {
         "q": {"id": "dust", "title": "Горсть пыли", "btn": "ПЫЛЬ",
@@ -265,8 +325,18 @@ const ABILITIES := {
             "cd": 3.0, "radius": 48.0, "tick_damage": 15,
             "ticks": 3, "tick_interval": 1.0},
         # Шаг 20: третий приём (T) — полное лечение (минута, задал автор).
-        "t": {"id": "second_wind", "title": "Передышка", "btn": "ОТДЫХ",
-            "hint": "Передышка", "kind": "second_wind", "cd": 25.0},
+        # Шаг 32 (задал автор): на T бомж превращается в ОБОРОТНЯ. В форме
+        # оборотня ВСЕ приёмы другие (см. WEREWOLF_ABILITIES), обратное
+        # превращение — тоже на T, кулдаун 30 с в обе стороны.
+        "t": {"id": "werewolf_form", "title": "Оборотень", "btn": "ВОЛК",
+            "hint": "Превращение в оборотня", "kind": "werewolf_form",
+            "cd": 30.0},
+        # Шаг 29/30 (пробел): «Хмельной запал» — не из инвентаря: бомж просто
+        # пьёт (анимация), мир зеленеет на 5 с и урон по герою не проходит.
+        # Кулдаун 20 с. Двойной тап направления этот приём не тратит.
+        "dash": {"id": "drink", "title": "Хмельной запал", "btn": "ХМЕЛЬ",
+            "hint": "Хмельной запал", "kind": "drink", "cd": 20.0,
+            "duration": 5.0},
     },
     "mage": {
         "q": {"id": "spell", "title": "Магия", "btn": "МАГИЯ",
@@ -279,7 +349,126 @@ const ABILITIES := {
         "t": {"id": "mana_burst", "title": "Выплеск магии", "btn": "ВЫПЛЕСК",
             "hint": "Выплеск магии", "kind": "mana_burst",
             "cd": 14.0, "damage_per_level": 20},
+        # Шаг 29/30 (пробел): телепорт на то же расстояние, что рывок воина,
+        # сквозь стены нельзя; суть тот же рывок, но анимация другая.
+        # Кулдаун 1 с.
+        "dash": {"id": "blink", "title": "Телепорт", "btn": "ПОРТАЛ",
+            "hint": "Телепорт", "kind": "blink", "cd": 1.0},
     },
+    # Шаг 31: Демоноолог — все четыре приёма призывают демонов-тумблеров:
+    # нажал — вызвал (мана списана), нажал ещё — отпустил (мана не вернётся);
+    # кулдаун появляется ТОЛЬКО после смерти демона (respawn_cd в DEMON_SUMMONS).
+    # Не хватает маны — приёма нет, в HUD это видно и подсказкой.
+    "demonologist": {
+        "q": {"id": "summon_demon", "title": "Призыв демона", "btn": "ДЕМОН",
+            "hint": "Призыв демона", "kind": "summon", "icon": "summon",
+            "summon": "demon", "mana_cost": 15},
+        "dash": {"id": "summon_winged", "title": "Крылатый демон",
+            "btn": "КРЫЛАТ", "hint": "Крылатый демон", "kind": "summon",
+            "icon": "summon_winged", "summon": "winged", "mana_cost": 45},
+        "t": {"id": "summon_huge", "title": "Огромный демон", "btn": "ГРОМИЛА",
+            "hint": "Огромный демон", "kind": "summon", "icon": "summon_huge",
+            "summon": "huge", "mana_cost": 75},
+        "special": {"id": "summon_succubus", "title": "Суккуб", "btn": "СУККУБ",
+            "hint": "Суккуб", "kind": "summon", "icon": "summon_succubus",
+            "summon": "succubus", "mana_cost": 60},
+    },
+    # Шаг 31: Некромант — армия поднятых врагов растёт с уровнем
+    # (necro_army_cap: 1/3/6/10...), всё колдуется за ману.
+    "necromancer": {
+        "q": {"id": "resurrect", "title": "Подъём мёртвых", "btn": "ПОДЪЁМ",
+            "hint": "Подъём мёртвых", "kind": "resurrect", "icon": "resurrect",
+            "cd": 2.0, "mana_cost": 25, "range": 70.0},
+        # Пробел — рывок сквозь стены (не за край карты); сквозь стены и пол.
+        "dash": {"id": "phase_dash", "title": "Прохождение сквозь стены",
+            "btn": "ФАЗА", "hint": "Прохождение сквозь стены", "kind": "phase_dash",
+            "icon": "phase", "cd": 2.0},
+        "t": {"id": "madness", "title": "Безумие", "btn": "БЕЗУМИЕ",
+            "hint": "Безумие", "kind": "madness", "icon": "madness",
+            "cd": 25.0, "duration": 10.0, "mana_cost": 40},
+        # Ctrl запирается до первой победы над боссом (Game.demon_defeated);
+        # после — зов Таинственного демона на 10 секунд.
+        "special": {"id": "summon_boss", "title": "Зов поверженного",
+            "btn": "ЗОВ", "hint": "Зов поверженного босса", "kind": "summon_boss",
+            "icon": "summon_boss", "cd": 30.0, "duration": 10.0, "mana_cost": 60},
+    },
+}
+
+## Шаг 32: способности бомжа В ФОРМЕ ОБОРОТНЯ (задал автор). Пока форма
+## активна, ability_info() читает приёмы отсюда — все четыре кнопки другие:
+##   q     — когти: 5 ударов когтями вперёд (комбо);
+##   dash  — наброситься на врага и СЪЕСТЬ его: не-босс исчезает, от него
+##           остаётся мясо; боссу — урон х1.5 от актуального удара;
+##   t     — обратно в человека (кулдаун 30 с, как и на превращение);
+##   special — вой: все враги этажа оглушены на 5 с, босс — на 3 с.
+## Оборотень — самый большой (scale 1.5) и самый быстрый герой, особенно
+## на Shift: бегает на четырёх лапах (сцены).
+const WEREWOLF_ABILITIES := {
+    "bum": {
+        "q": {"id": "claws", "title": "Когти оборотня", "btn": "КОГТИ",
+            "hint": "5 ударов когтями вперёд", "kind": "claws",
+            "cd": 1.4, "hits": 5, "damage": 16},
+        "dash": {"id": "pounce", "title": "Наброситься", "btn": "НАБРОС",
+            "hint": "Наброситься и съесть врага", "kind": "pounce",
+            "cd": 3.0, "range": 110.0, "boss_damage_mult": 1.5},
+        "t": {"id": "werewolf_form", "title": "Обратно в человека",
+            "btn": "ЧЕЛОВЕК", "hint": "Обратно в человека",
+            "kind": "werewolf_form", "cd": 30.0},
+        "special": {"id": "howl", "title": "Вой", "btn": "ВОЙ",
+            "hint": "Вой: все враги оглушены", "kind": "howl",
+            "cd": 12.0, "stun_sec": 5.0, "boss_stun_sec": 3.0},
+    },
+}
+
+## Шаг 32: форма оборотня (состояние сессии, в сейв не пишется).
+## werewolf_active — бомж сейчас оборотень; werewolf_cd_until — монотонные
+## мс, до которых смена формы недоступна (30 с в обе стороны).
+var werewolf_active: bool = false
+var werewolf_cd_until: int = 0
+const WEREWOLF_TRANSFORM_CD := 30.0
+
+## Сколько осталось кулдауна смены формы (0 — можно превращаться).
+func werewolf_cd_left() -> float:
+    return maxf(0.0, float(werewolf_cd_until - Time.get_ticks_msec()) / 1000.0)
+
+## Урон когтей оборотня: своя база (16), растущая с уровнем, но не меньше
+## урона актуального удара — оборотень дерётся телом, не оружием.
+func werewolf_claw_damage() -> int:
+    return maxi(strike_damage(), maxi(1, int(round(16.0 * hero_level_mult()))))
+
+## Сменить форму оборотня (бомж, T). false — кулдаун ещё не истёк
+## (или герой не бомж). Кулдаун ставится в обе стороны: 30 секунд.
+func toggle_werewolf() -> bool:
+    if hero_id != "bum":
+        return false
+    if werewolf_cd_left() > 0.0:
+        return false
+    werewolf_active = not werewolf_active
+    werewolf_cd_until = Time.get_ticks_msec() \
+        + int(round(WEREWOLF_TRANSFORM_CD * 1000.0))
+    return true
+
+## Шаг 31: таблица призывов Демоноолога. hp/damage — базовые значения
+## (масштабируются hero_level_mult вместе с героем), respawn_cd — кулдаун
+## кнопки после СМЕРТИ демона (сам отпуск — без кулдауна), sheet/frame_w/h —
+## лист и размер кадров (huge — лист Таинственного демона 72x96).
+const DEMON_SUMMONS := {
+    "demon": {"title": "Демон", "sheet": "res://assets/sprites/dungeon/demon_swordsman.png",
+        "frame_w": 24, "frame_h": 32, "hp": 45, "damage": 9, "speed": 78.0,
+        "attack_range": 18.0, "attack_cd": 0.9, "respawn_cd": 25.0, "scale": 1,
+        "tint": Color(1.0, 0.86, 0.86)},
+    "winged": {"title": "Крылатый демон", "sheet": "res://assets/sprites/dungeon/night_gaunt.png",
+        "frame_w": 24, "frame_h": 32, "hp": 70, "damage": 14, "speed": 96.0,
+        "attack_range": 18.0, "attack_cd": 0.8, "respawn_cd": 40.0, "scale": 1,
+        "tint": Color(0.92, 0.86, 1.0)},
+    "huge": {"title": "Огромный демон", "sheet": "res://assets/sprites/chars/demon.png",
+        "frame_w": 72, "frame_h": 96, "hp": 170, "damage": 26, "speed": 52.0,
+        "attack_range": 30.0, "attack_cd": 1.4, "respawn_cd": 60.0, "scale": 1,
+        "tint": Color(1.0, 0.9, 0.9)},
+    "succubus": {"title": "Суккуб", "sheet": "res://assets/sprites/dungeon/succubus.png",
+        "frame_w": 24, "frame_h": 32, "hp": 95, "damage": 18, "speed": 104.0,
+        "attack_range": 18.0, "attack_cd": 0.7, "respawn_cd": 50.0, "scale": 1,
+        "tint": Color(1.0, 0.88, 0.92)},
 }
 
 var gold: int = START_GOLD
@@ -328,6 +517,56 @@ var current_dungeon: String = "dungeon_1"
 ## визуалом (рост спрайта) через titan_active().
 var titan_until: int = 0
 var titan_mult: float = 1.0
+
+## Шаг 29: «Хмельной запал» бомжа (приём на пробеле, состояние сессии):
+## до drink_until (монотонные мс) урон герою не проходит, а мир в сцене
+## подкрашивается зелёным. В сейв не пишется, при новом забеге сбрасывается.
+var drink_until: int = 0
+
+# ------------------------------------------ призывы (шаг 31, сессия)
+
+## Призванные демоны Демоноолога: summon_id -> {"slot": String, "hp": int}.
+## Слот — какая кнопка призвала ("q"/"dash"/"t"/"special"), чтобы при смерти
+## поставить кулдаун нужной кнопке. Хп помнится между сценами (мир/данж):
+## призыв ходит с героем. В сейв не пишется, при новом забеге сбрасывается.
+var summons_active: Dictionary = {}
+## Кулдауны кнопок после СМЕРТИ демона: summon_id -> монотонные мс конца.
+## У живого демона кулдауна нет: тумблер вызвал/отпустил работает свободно.
+var summon_cd_until: Dictionary = {}
+## Армия Некроманта: поднятые враги (записи ally для Minions). В сейв
+## не пишется, при новом забеге сбрасывается.
+var necro_army: Array = []
+## Зов поверженного босса (Некромант Ctrl): активен до этого момента (мс).
+var boss_summon_until: int = 0
+
+## Сколько осталось кулдауна призыва (0 — можно звать).
+func summon_cd_left(summon_id: String) -> float:
+    var until := int(summon_cd_until.get(summon_id, 0))
+    return maxf(0.0, float(until - Time.get_ticks_msec()) / 1000.0)
+
+## Поставить кулдаун призыва (после смерти демона).
+func start_summon_cd(summon_id: String) -> void:
+    var def: Dictionary = DEMON_SUMMONS.get(summon_id, {})
+    var cd := float(def.get("respawn_cd", 20.0))
+    summon_cd_until[summon_id] = Time.get_ticks_msec() + int(round(cd * 1000.0))
+
+## Базовый максимум хп призыва с учётом уровня героя (+35%% за уровень).
+func summon_max_hp(summon_id: String) -> int:
+    var base := int(DEMON_SUMMONS.get(summon_id, {}).get("hp", 10))
+    return maxi(1, int(round(float(base) * hero_level_mult())))
+
+## Урон призыва с учётом уровня героя.
+func summon_damage(summon_id: String) -> int:
+    var base := int(DEMON_SUMMONS.get(summon_id, {}).get("damage", 1))
+    return maxi(1, int(round(float(base) * hero_level_mult())))
+
+## Лимит армии Некроманта (задал автор: 1-й уровень — 1, 2-й — 3,
+## 3-й — 6 и т.д. — треугольные числа n*(n+1)/2).
+func necro_army_cap() -> int:
+    return level * (level + 1) / 2
+
+func drink_active() -> bool:
+    return Time.get_ticks_msec() < drink_until
 
 ## ------------------------------------------------ мутация и финал (шаг 24)
 
@@ -391,19 +630,87 @@ func titan_damage_mult() -> float:
 var hero_immune := false
 var guard_active := false
 
+## Шаг 27: i-frames героя (сек). Ставятся попаданием врага (0.5 с) и
+## рывком (0.25 с): в это время damage_hp(amount, true) глотает урон —
+## толпа врагов больше не «стан-лочит» героя до смерти. Тикают в _process.
+var _hero_iframes := 0.0
+
+## Шаг 27: боевая случайность (разброс ±15%, криты 10%, усиленный
+## третий удар серии). Сцены выставляют при _ready: в живой игре — true,
+## в тестовом прогоне — false (см. under_test ниже).
+var combat_variance := true
+
 ## Приём героя по слоту ("q" или "special"): копия записи из ABILITIES
 ## для текущего класса. Пустой словарь — приёма нет (не бывает: у всех
 ## четырёх классов оба приёма заданы).
+## Шаг 32: бомж в форме оборотня читает приёмы из WEREWOLF_ABILITIES —
+## все четыре кнопки в форме другие.
 func ability_info(slot: String) -> Dictionary:
-    var klass: Dictionary = ABILITIES.get(hero_id, {})
+    var klass: Dictionary = (WEREWOLF_ABILITIES if werewolf_active \
+        else ABILITIES).get(hero_id, {})
     var info := (klass.get(slot, {}) as Dictionary).duplicate(true)
+    # Шаг 31: слот приёма едет с записью — призывы ставят кулдаун на свою кнопку
+    info["_slot"] = slot
     # Шаг 25: урон приёмов растёт с уровнем героя (+35%/уровень; топор, тик газа).
     for key in ["damage", "tick_damage", "splash_damage"]:
         if info.has(key):
             info[key] = maxi(1, int(round(float(info[key]) * hero_level_mult())))
     return info
+
+## ------------------------------------------------ F-атака оружием (шаг 32)
+
+## Что получится на удар (F/ЛКМ) ПРЯМО СЕЙЧАС с оружием в руках.
+##   Демоноолог/Некромант с тёмным оружием (f_attack в предмете) — своя
+##   F-атака: bolt (снаряд), beam (мгновенный луч сквозь ряды) или nova
+##   (вспышка вокруг героя); урон растёт с уровнем (+35%/уровень).
+##   Маг с магическим оружием — ЛУЧ этого оружия: сфокусированный удар
+##   по прямой (в отличие от залпа-веера на Q); параметры — из volley
+##   предмета, какой оружие — такой и луч.
+##   Пустой словарь — обычный удар врукопашную.
+func f_attack_info() -> Dictionary:
+    if not has_weapon():
+        return {}
+    # тёмное оружие колдунов: только им и только их оружие стреляет
+    if hero_id in ItemDB.DARK_WEAPON_HEROES:
+        var spec := ItemDB.f_attack(equipped_weapon_id)
+        if spec.is_empty():
+            return {}
+        var info := spec.duplicate(true)
+        info["damage"] = maxi(1, int(round(float(info.get("damage", 1))
+            * hero_level_mult())))
+        info["weapon_id"] = equipped_weapon_id
+        return info
+    # маг: луч по оружию в руках (посох/жезл/сфера — любое магическое)
+    if hero_id == "mage" and ItemDB.is_magic(equipped_weapon_id):
+        var v := ItemDB.volley(equipped_weapon_id)
+        if v.is_empty():
+            return {}
+        var title := String(v.get("title", "Залп"))
+        var beam_title := title.replace("Залп", "Луч").replace("веер", "луч") \
+            .replace("Веер", "Луч").replace("стрелы", "луч") \
+            .replace("Сглаз", "Луч").replace("плевок", "луч") \
+            .replace("Лучи", "Луч")
+        if beam_title == title:
+            beam_title = "Луч (%s)" % title
+        return {
+            "title": beam_title, "kind": "beam",
+            "damage": maxi(1, int(round(float(v.get("damage", 10))
+                * 2.2 * hero_level_mult()))),
+            "mana": int(v.get("mana", SPELL["cost"])),
+            "cooldown": float(v.get("cooldown", SPELL["cooldown"])) + 0.2,
+            "range_px": float(v.get("range_px", SPELL["range_px"])) + 70.0,
+            "color": v.get("color", [0.55, 0.85, 0.95]),
+            "size": float(v.get("size", 1.0)) * 1.4,
+            "weapon_id": equipped_weapon_id,
+        }
+    return {}
+
 ## Текущий слот сейва: 0 — игра не идёт (просто смотрим меню).
 var current_slot: int = 0
+## Шаг 33: позиция героя в хабе (пиксели). Пишется миром каждый кадр;
+## ZERO — позиции нет (новый забег, герой у спавна). Читается миром при
+## сборке сцены: ЗАГРУЗИТЬ/ПРОДОЛЖИТЬ возвращает героя туда, где он был.
+var hub_pos := Vector2.ZERO
 ## Глобальные настройки игрока (хранятся в meta.json).
 var last_meta_save_error: int = OK
 var settings := {"sound": true, "music": true}
@@ -414,6 +721,34 @@ func _ready() -> void:
     randomize()
     meta = Platform.load_meta()
     _load_settings(meta.get("settings", {}))
+
+func _process(delta: float) -> void:
+    # шаг 27: таймер i-frames живёт в Game — работает и в мире, и в данже
+    if _hero_iframes > 0.0:
+        _hero_iframes = maxf(0.0, _hero_iframes - delta)
+
+## Шаг 27: дать герою неуязвимость на seconds (попадание врага, рывок).
+## Повторное попадание не продлевает защиту сверх большего из двух значений.
+func grant_iframes(seconds: float) -> void:
+    _hero_iframes = maxf(_hero_iframes, seconds)
+
+## Сколько i-frames осталось (0 — герой уязвим). Сцены мерцают по этому значению.
+func hero_iframes_left() -> float:
+    return _hero_iframes
+
+## Шаг 27: тестовое окружение? Поднимаемся по цепочке предков узла:
+## если среди них сценарий res://tests/*.gd — идёт тест или съёмка.
+## Боевая случайность там отключается (комбо, криты, разброс), чтобы
+## точные проверки хп существующих шагов не поплыли.
+func under_test(host: Node) -> bool:
+    var node: Node = host
+    while node != null:
+        var script: Script = node.get_script()
+        if script != null and String(script.resource_path) \
+                .begins_with("res://tests/"):
+            return true
+        node = node.get_parent()
+    return false
 
 ## Записать глобальную meta на диск.
 func save_meta() -> int:
@@ -454,7 +789,14 @@ func max_hp() -> int:
     return base + ItemDB.hp_bonus(equipped_armor_id)
 
 func max_mana() -> int:
-    return hero_max_mana(hero_id) + ItemDB.mana_bonus(equipped_armor_id)
+    # Шаг 31: у колдунов максимум маны растёт с уровнем (mana_per_level).
+    var base := hero_max_mana(hero_id) + mana_per_level() * (level - 1)
+    return base + ItemDB.mana_bonus(equipped_armor_id)
+
+## Прирост максимума маны за уровень (шаг 31: только у новых колдунов;
+## у мага мана фиксированная — 70, как задал автор).
+func mana_per_level() -> int:
+    return int(HEROES.get(hero_id, {}).get("mana_per_level", 0))
 
 ## Является ли текущий герой магом по природе (у него врождённая мана
 ## и заклинания). Экипировка потолок маны растит, но магом не делает.
@@ -520,13 +862,18 @@ func heal_hp(amount: int) -> int:
         Saves.request_save()
     return hp - before
 
-## Урон по герою (бои появятся позже; сейчас используется тестами).
+## Урон по герою (шаг 12: демон; шаг 20: враги данжа).
 ## Шаг 18: пока hero_immune (барьер мага, щит воина) урон поглощается.
 ## Шаг 22: в форме титана урон тоже не проходит (но бить можно —
 ## в отличие от барьера, внимания приёмы не отнимают).
-func damage_hp(amount: int) -> void:
-    if amount <= 0 or hero_immune or titan_active():
+## Шаг 27: respect_iframes=true — боевые попадания уважают i-frames
+## (мерцание после урона, рывок): толпа больше не бьёт каждые полтакта.
+## По умолчанию false — прямые вызовы (включая тесты) работают как раньше.
+func damage_hp(amount: int, respect_iframes: bool = false) -> void:
+    if amount <= 0 or hero_immune or titan_active() or drink_active():
         return
+    if respect_iframes and _hero_iframes > 0.0:
+        return   # шаг 27: попадание пришлось на мерцание/рывок — глотаем
     hp = maxi(0, hp - amount)
     hp_changed.emit(hp, max_hp())
     Saves.request_save()
@@ -631,6 +978,11 @@ func try_equip_weapon(item_id: String) -> Dictionary:
     # (металл, пропитанный чужой волей, жжёт его руки).
     if hero_id == "barbarian" and ItemDB.is_magic(item_id):
         result["reason"] = "barbarian_rejected"
+        return result
+    # Шаг 32: тёмное оружие колдунов (черепа, посохи погибели...) слушается
+    # только Демоноолога и Некроманта — остальным героям отказ.
+    if not ItemDB.hero_class_ok(item_id, hero_id):
+        result["reason"] = "class_rejected"
         return result
     equipped_weapon_id = item_id
     equipped_changed.emit(equipped_weapon_id)
@@ -1048,6 +1400,9 @@ func reset_progress() -> void:
     meta["last_slot"] = 0
     meta["pending_gold"] = 0
     meta["pending_items"] = []
+    # шаг 32: форма оборотня — тоже часть прогресса, сбрасывается
+    werewolf_active = false
+    werewolf_cd_until = 0
     Saves.wipe_all_slots()
     save_meta()
     gold_changed.emit(gold)
@@ -1091,10 +1446,21 @@ func new_run(slot: int, hero: String) -> void:
     demon_defeated = false
     dungeon_floor = 0
     current_dungeon = "dungeon_1"
+    # шаг 33: новый забег начинается у спавна — прежней позиции в хабе нет
+    hub_pos = Vector2.ZERO
     hero_immune = false
     guard_active = false
     titan_until = 0
     titan_mult = 1.0
+    drink_until = 0
+    # шаг 31: призывы — сессионное состояние, при новом забеге пусто
+    summons_active = {}
+    summon_cd_until = {}
+    necro_army = []
+    boss_summon_until = 0
+    # шаг 32: форма оборотня сбрасывается при новом забеге и загрузке слота
+    werewolf_active = false
+    werewolf_cd_until = 0
     merchant_stock = {}
     demon_stock = []
     queen_slain = false
@@ -1164,7 +1530,7 @@ func _transfer_pending_bonus() -> void:
 
 func to_save_data() -> Dictionary:
     return {
-        "v": 8,
+        "v": 9,
         "hero_id": hero_id,
         "level": level,
         "xp": xp,
@@ -1179,6 +1545,11 @@ func to_save_data() -> Dictionary:
         "queen_slain": queen_slain,
         "merchant_stock": merchant_stock,
         "demon_stock": demon_stock,
+        # шаг 33: где был герой — этаж данжа (0 — хаб), сам данж и точка в хабе
+        "dungeon_floor": dungeon_floor,
+        "current_dungeon": current_dungeon,
+        "hub_x": hub_pos.x,
+        "hub_y": hub_pos.y,
         "saved_at": Time.get_datetime_string_from_system(false, true),
     }
 
@@ -1207,7 +1578,8 @@ func load_save_data(data: Dictionary) -> void:
     if not saved_weapon.is_empty() \
             and String(ItemDB.get_item(saved_weapon).get("type", "")) == "weapon" \
             and _has_item(saved_weapon) \
-            and not (hero_id == "barbarian" and ItemDB.is_magic(saved_weapon)):
+            and not (hero_id == "barbarian" and ItemDB.is_magic(saved_weapon)) \
+            and ItemDB.hero_class_ok(saved_weapon, hero_id):
         equipped_weapon_id = saved_weapon
     # Шаг 12: броня/одеяние восстанавливается только если это экипировка
     # из сумки; одеяние — только магу. Старые сейвы (v4 и раньше) мигрируют
@@ -1245,8 +1617,18 @@ func load_save_data(data: Dictionary) -> void:
     demon_hits = 0
     demon_enraged = false
     demon_seen = false
-    dungeon_floor = 0
-    current_dungeon = "dungeon_1"
+    # Шаг 33: этаж/данж и позиция в хабе возвращаются из сейва —
+    # ЗАГРУЗИТЬ возвращает героя туда, где он сохранялся (0 — хаб).
+    var saved_floor := int(data.get("dungeon_floor", 0))
+    current_dungeon = String(data.get("current_dungeon", "dungeon_1"))
+    if saved_floor > 0:
+        if DungeonBestiary.dungeon_meta(current_dungeon).get("id", "") != current_dungeon:
+            current_dungeon = "dungeon_1"
+        dungeon_floor = clampi(saved_floor, 1, DungeonBestiary.FLOORS)
+    else:
+        dungeon_floor = 0
+        current_dungeon = "dungeon_1"
+    hub_pos = Vector2(float(data.get("hub_x", 0.0)), float(data.get("hub_y", 0.0)))
     hero_immune = false
     guard_active = false
     titan_until = 0
@@ -1257,6 +1639,15 @@ func load_save_data(data: Dictionary) -> void:
     # Шаг 24: Королева ночи (сейв v8; старые сейвы мигрируют: она жива).
     queen_slain = bool(data.get("queen_slain", false))
     queen_hostile = false
+    # Шаг 31: призывы — сессионное состояние, в сейв не пишутся;
+    # при загрузке слота прошлые призывы не переносятся.
+    summons_active = {}
+    summon_cd_until = {}
+    necro_army = []
+    boss_summon_until = 0
+    # Шаг 32: форма оборотня — сессионная, при загрузке слота сбрасывается.
+    werewolf_active = false
+    werewolf_cd_until = 0
     # Мёртвые NPC в сейв не пишутся: список живёт только в сессии.
     # Совместимость с сейвами шагов 1-2: настройки жили в сейве.
     if data.has("settings"):

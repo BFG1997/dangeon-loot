@@ -61,10 +61,14 @@ func _ready() -> void:
     var dlg: DialogueUI = dun._dialogue
     var panel: PanelContainer = dlg._panel
     var rect := panel.get_global_rect()
+    # шаг 26 (ПК): низ диалога закреплён на bottom_reserve над консолью HUD —
+    # граница считается от ФАКТИЧЕСКОЙ высоты вьюпорта, а не от мобильных 640 px.
+    var view_h: float = get_viewport().get_visible_rect().size.y
+    var bottom_limit: float = view_h - 120.0 + 0.5
     check("диалог открылся", dlg.visible)
     check("панель диалога не выше PANEL_MAX_H (460)", panel.size.y <= 460.5)
-    check("панель не уехала за нижний край (низ = 640-120)", \
-        rect.end.y <= 640.0 - 120.0 + 0.5)
+    check("панель не уехала за нижний край (низ = экран-120)", \
+        rect.end.y <= bottom_limit)
     check("offset_bottom канонический (-120)", \
         absf(panel.offset_bottom - (-120.0)) < 0.5)
     # листаем все реплики: геометрия честная на каждой
@@ -73,7 +77,7 @@ func _ready() -> void:
         if not dlg.visible:
             break
         var r := panel.get_global_rect()
-        if r.end.y > 640.0 - 120.0 + 0.5 or panel.size.y > 460.5:
+        if r.end.y > bottom_limit or panel.size.y > 460.5:
             geo_ok = false
         if panel.offset_bottom != -120.0:
             geo_ok = false

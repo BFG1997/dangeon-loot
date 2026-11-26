@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 """Генератор scripts/data/world_map.gd «Dungeon Loot» (шаг 4).
-Замок + двор + край мира; новаяSymbols: m/s (мрамор), d (брусчатка), 1-6 (космос)."""
+Замок + двор + край мира; символы: m/s (мрамор), d (брусчатка), 1-6 (космос).
+Расширение хаба (2026-11-26): остров 30 колонок по центру карты 60 колонок,
+слева и справа — 15 колонок космоса (V/1-6, твёрдые), ограда — только под
+островом. ВНИМАНИЕ: файл world_map.gd после шагов 5-12 правился руками
+(goods/hp NPC, Глот, Зоран, демон) — регенерация их сотрёт; сверять!
+"""
 import random
 
 random.seed(11)
 
 W, H = 30, 56
+PAD = 15                        # космос по бокам острова
+FULL_W = W + 2 * PAD            # 60
 GATE_L, GATE_R = 13, 16          # колонны ворот/ковра
 DOORS = [(4, 5), (11, 12), (17, 18), (24, 25)]
 WINDOWS = [2, 14, 20, 27]
@@ -83,7 +90,7 @@ for y in range(20, 46):
             row.append(ground_tile(x, y))
     rows.append("".join(row))
 
-# --- ряд 46: ограда края
+# --- ряд 46: ограда края (только под островом; по бокам космос)
 rows.append("R" * W)
 
 # --- ряды 47..55: космос
@@ -92,6 +99,16 @@ for _y in range(47, H):
     row = [random.choices(void_syms, weights=[40, 10, 10, 10, 10, 10, 10])[0] for _ in range(W)]
     rows.append("".join(row))
 
+# --- расширение хаба: космос по бокам всех рядов (остров в центре)
+def void_pad():
+    return "".join(random.choices(void_syms, weights=[40, 10, 10, 10, 10, 10, 10])[0]
+                   for _ in range(PAD))
+
+padded = []
+for row in rows:
+    padded.append(void_pad() + row + void_pad())
+rows = padded
+
 # ---------------------------------------------------------------- GDScript
 MAP_LINES = "\n".join(f'\t"{r}",' for r in rows)
 
@@ -99,6 +116,7 @@ def v2(x, y):
     return f"Vector2({x}, {y})"
 
 def prop(name, tile, w, h, solid, layer, texture=None, anim=None, bob=None):
+    tile = (tile[0] + PAD, tile[1])      # остров сдвинут в центр карты
     parts = [f'"name": "{name}"', f'"tile": {v2(*tile)}', f'"w": {w}', f'"h": {h}',
              f'"solid": {"true" if solid else "false"}', f'"layer": "{layer}"']
     if texture:
@@ -173,28 +191,33 @@ NPCS = [
     ("viras", "Вирас", "Кузнец", (23, 31), "street"),
 ]
 NPCS_GD = ",\n".join(
-    f'\t{{"id": "{i}", "name": "{n}", "role": "{r}", "tile": {v2(*t)}, "zone": "{z}", '
+    f'\t{{"id": "{i}", "name": "{n}", "role": "{r}", "tile": {v2(t[0] + PAD, t[1])}, "zone": "{z}", '
     f'"sheet": "res://assets/sprites/chars/{i}.png", '
     f'"portrait": "res://assets/sprites/portraits/{i}.png"}}'
     for (i, n, r, t, z) in NPCS)
 
 DOORS_GD = ",\n".join(
-    f'\t{{"id": "dungeon_{k}", "tiles": [{v2(a, 0)}, {v2(b, 0)}]}}'
+    f'\t{{"id": "dungeon_{k}", "tiles": [{v2(a + PAD, 0)}, {v2(b + PAD, 0)}]}}'
     for k, (a, b) in enumerate(DOORS, 1))
 
-GD = f'''## Карта мира «Dungeon Loot» (шаг 4): замок + двор + край мира с космосом.
+GD = f'''## Карта мира «Dungeon Loot» (шаг 4; расширение хаба 2026-11-26):
+## остров замок+улица по центру, космос снизу и по бокам (единый).
 ## Сгенерировано скриптом gen_worldmap.py — вручную не править,
 ## правки вносить в генератор и перегенерировать.
 class_name WorldMap
 extends RefCounted
 
-const MAP_W := {W}
+const MAP_W := {FULL_W}
 const MAP_H := {H}
 const RAILING_ROW := 46
+## Остров мира (замок+улица) стоит по центру карты: колонки {PAD}..{PAD+W-1};
+## колонки 0..{PAD-1} и {PAD+W}..{FULL_W-1} — космос (как южные ряды за оградой).
+const ISLAND_X0 := {PAD}
+const ISLAND_X1 := {PAD + W - 1}
 const CASTLE_LAST_ROW := 19
 const TILE_SIZE := 16
-const SOLID_TILES := "#BDFRWkf"
-const PLAYER_SPAWN := Vector2(14, 13)
+const SOLID_TILES := "#BDFRWkfV123456"
+const PLAYER_SPAWN := Vector2({14 + PAD}, 13)
 
 ## Символ -> координата в атласе assets/tilesets/world_tiles.png
 const TILE_ATLAS := {{
@@ -227,7 +250,8 @@ const MAP: Array[String] = [
 {MAP_LINES}
 ]
 
-## NPC: id, имя, роль, тайл, зона, лист спрайтов и портрет.
+## NPC: id, имя, роль, тайл, зона, лист спрайтов и портрет (тайлы острова
+## сдвинуты на +{PAD} колонок при расширении хаба).
 const NPCS: Array[Dictionary] = [
 {NPCS_GD},
 ]
@@ -245,9 +269,10 @@ with open("/home/z/my-project/game/mini-rpg/scripts/data/world_map.gd", "w") as 
     f.write(GD)
 
 # быстрая самопроверка
-assert all(len(r) == W for r in rows), "ширина строк!"
-assert rows[46] == "R" * W
-assert rows[0][4] == "D" and rows[0][25] == "D"
-print("world_map.gd записан,", len(rows), "рядов")
+assert all(len(r) == FULL_W for r in rows), "ширина строк!"
+assert rows[46][PAD:PAD + W] == "R" * W
+assert rows[0][PAD + 4] == "D" and rows[0][PAD + 25] == "D"
+print("world_map.gd записан:", len(rows), "рядов по", FULL_W, "колонок")
+print("остров: колонки", PAD, "..", PAD + W - 1)
 print("NPC:", [n[0] for n in NPCS])
 print("пропов:", len(PROPS))

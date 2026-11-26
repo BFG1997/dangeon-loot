@@ -1,8 +1,7 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/main/main.gd" id="1_main"]
 [ext_resource type="Texture2D" path="res://assets/sprites/chest_closed.png" id="2_chest"]
-[ext_resource type="Texture2D" path="res://assets/sprites/gift.png" id="3_gift"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.086, 0.094, 0.149, 1)
@@ -319,53 +318,6 @@ theme_override_constants/separation = 8
 layout_mode = 2
 text = "НАЗАД"
 
-[node name="BonusPanel" type="PanelContainer" parent="PanelLayer/Center"]
-visible = false
-custom_minimum_size = Vector2(280, 0)
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
-
-[node name="VBox" type="VBoxContainer" parent="PanelLayer/Center/BonusPanel"]
-layout_mode = 2
-theme_override_constants/separation = 14
-
-[node name="TitleLabel" type="Label" parent="PanelLayer/Center/BonusPanel/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.84, 0, 1)
-theme_override_font_sizes/font_size = 18
-horizontal_alignment = 1
-text = "БОНУС"
-
-[node name="Gift" type="TextureRect" parent="PanelLayer/Center/BonusPanel/VBox"]
-layout_mode = 2
-size_flags_horizontal = 4
-custom_minimum_size = Vector2(64, 64)
-stretch_mode = 0
-texture = ExtResource("3_gift")
-
-[node name="BonusLabel" type="Label" parent="PanelLayer/Center/BonusPanel/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.85, 0.87, 0.9, 1)
-autowrap_mode = 3
-horizontal_alignment = 1
-text = "Раз в день: 50-200 золота\nи фиолетовая добыча!"
-
-[node name="ClaimButton" type="Button" parent="PanelLayer/Center/BonusPanel/VBox"]
-layout_mode = 2
-text = "ЗАБРАТЬ ПОДАРОК"
-
-[node name="ResultLabel" type="Label" parent="PanelLayer/Center/BonusPanel/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.85, 0.87, 0.9, 1)
-autowrap_mode = 3
-horizontal_alignment = 1
-text = ""
-
-[node name="CloseButton" type="Button" parent="PanelLayer/Center/BonusPanel/VBox"]
-layout_mode = 2
-text = "ЗАКРЫТЬ"
-
 [connection signal="gui_input" from="Chest" to="." method="_on_chest_gui_input"]
 [connection signal="toggled" from="PanelLayer/Center/SettingsPanel/VBox/SoundCheck" to="." method="_on_sound_toggled"]
 [connection signal="toggled" from="PanelLayer/Center/SettingsPanel/VBox/MusicCheck" to="." method="_on_music_toggled"]
@@ -377,5 +329,3 @@ text = "ЗАКРЫТЬ"
 [connection signal="pressed" from="PanelLayer/Center/StartPanel/VBox/LoadButton" to="." method="_on_load_pressed"]
 [connection signal="pressed" from="PanelLayer/Center/StartPanel/VBox/StartCloseButton" to="." method="_close_panel"]
 [connection signal="pressed" from="PanelLayer/Center/StartPanel/SlotsBox/SlotsBackButton" to="." method="_on_slots_back_pressed"]
-[connection signal="pressed" from="PanelLayer/Center/BonusPanel/VBox/ClaimButton" to="." method="_on_claim_bonus_pressed"]
-[connection signal="pressed" from="PanelLayer/Center/BonusPanel/VBox/CloseButton" to="." method="_close_panel"]

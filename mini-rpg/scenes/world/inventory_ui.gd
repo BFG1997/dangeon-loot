@@ -212,17 +212,37 @@ func _hero_stats_text() -> String:
         text += "\nНадето: %s · %s" % [ItemDB.title(armor_id), bonus]
     return text
 
-## Высота списка сумки под вьюпорт: на маленьких экранах шапка,
-## экипировка, описание и кнопки остаются на виду (как в лавке).
+## Высота списка сумки под вьюпорт: шапка, экипировка, описание и кнопки
+## остаются на виду (как в лавке). ФИКС ПК (шаг 26): фиксированные секции
+## измеряются ФАКТИЧЕСКИ, а не константой 372 px (мобильные 640) — раньше
+## на ПК-окнах ниже 540 логических пикселей окно сумки вылезало за экран.
 func _fit_scroll_budget() -> void:
     if _scroll == null:
         return
     var vp := get_viewport()
     if vp != null:
-        var budget := vp.get_visible_rect().size.y - 372.0
-        _scroll.custom_minimum_size.y = clampf(238.0, 120.0,
-            maxf(120.0, budget))
+        var budget := vp.get_visible_rect().size.y - _fixed_sections_height() - 12.0
+        _scroll.custom_minimum_size.y = clampf(budget, 90.0, 420.0)
     _scroll.scroll_vertical = 0
+
+## Сумма фактических минимальных высот всех видимых секций окна сумки,
+## кроме самого списка (_scroll): панель, шапка, экипировка, описание, кнопки.
+func _fixed_sections_height() -> float:
+    var vbox := _scroll.get_parent() as VBoxContainer
+    var total := 0.0
+    var visible_count := 0
+    for child in vbox.get_children():
+        var control := child as Control
+        if control == null or control == _scroll or not control.visible:
+            continue
+        total += control.get_combined_minimum_size().y
+        visible_count += 1
+    var sep := float(vbox.get_theme_constant("separation"))
+    total += sep * float(maxi(visible_count - 1, 0))
+    var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
+    if style != null:
+        total += style.content_margin_top + style.content_margin_bottom
+    return total
 
 func close() -> void:
     visible = false
@@ -449,6 +469,8 @@ func _apply_weapon_action(item: Dictionary, item_id: String) -> void:
             % [String(item.get("title", "Оружие")), Game.strike_damage()]
     elif String(result.get("reason", "")) == "barbarian_rejected":
         _desc_label.text = "[color=#e88a8a]Магическое оружие отвергает варвара: чужая воля жжёт руки.[/color]"
+    elif String(result.get("reason", "")) == "class_rejected":
+        _desc_label.text = "[color=#e88a8a]Тёмное оружие слушается только Демоноолога и Некроманта.[/color]"
     else:
         _desc_label.text = "[color=#9aa0a6]Это не годится для боя.[/color]"
 
